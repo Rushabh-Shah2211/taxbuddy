@@ -1,0 +1,49 @@
+/* client/src/components/TaxCalculator.css */
+.calculator-container {
+    max-width: 600px;
+    margin: 50px auto;
+    padding: 20px;
+    background: #f9f9f9;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    font-family: Arial, sans-serif;
+}
+
+.tax-form { display: flex; flex-direction: column; gap: 15px; }
+
+.form-row { display: flex; gap: 10px; }
+.form-row input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+
+.calculate-btn {
+    padding: 12px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.result-card { margin-top: 30px; text-align: center; }
+
+.comparison-box { display: flex; justify-content: space-between; gap: 20px; margin-top: 20px; }
+
+.regime-card {
+    flex: 1;
+    padding: 15px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+.winner { border: 2px solid #28a745; background-color: #e6ffea; }
+
+.tax-amount { font-size: 1.2em; font-weight: bold; color: #333; }
+
+.recommendation-banner {
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border-radius: 5px;
+}
