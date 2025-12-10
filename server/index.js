@@ -1,28 +1,30 @@
 // server/index.js
 const express = require('express');
-const dotenv = require('dotenv');
+const dotenv = require('dotenv'); // 1. Load the tool
 const cors = require('cors');
+
+// 2. CONFIG MUST BE HERE (Top of the file)
+dotenv.config(); 
+
+// 3. NOW it is safe to import files that use the keys
 const connectDB = require('./config/db');
-
-// Import Routes
 const taxRoutes = require('./routes/taxRoutes');
-const authRoutes = require('./routes/authRoutes'); 
+const authRoutes = require('./routes/authRoutes');
+const paymentRoutes = require('./routes/paymentRoutes'); 
 
-dotenv.config();
+// 4. Connect to Database
 connectDB();
 
-// --- FIX: Create 'app' BEFORE using it ---
-const app = express(); 
+const app = express();
 
-// Middleware
 app.use(express.json());
 app.use(cors());
 
-// Mount Routes (These must come AFTER 'const app = express()')
-app.use('/api/auth', authRoutes); // Login/Register routes
-app.use('/api/tax', taxRoutes);   // Tax Calculation routes
+// 5. Use Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/tax', taxRoutes);
+app.use('/api/payment', paymentRoutes); 
 
-// Basic Test Route
 app.get('/', (req, res) => {
     res.send('Tax SaaS API is running...');
 });

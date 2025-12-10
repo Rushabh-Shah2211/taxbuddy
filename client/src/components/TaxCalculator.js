@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable'; // <--- FIX 1: Import as a variable
+import autoTable from 'jspdf-autotable';
 import './TaxCalculator.css';
 
 const TaxCalculator = () => {
@@ -35,9 +35,8 @@ const TaxCalculator = () => {
     const calculateTax = async (e) => {
         e.preventDefault();
         
-        // Use the Cloud URL
+        // 1. CALCULATE TAX
         const apiUrl = 'https://taxbuddy-o5wu.onrender.com/api/tax/calculate';
-
         const config = {
             headers: {
                 'Content-Type': 'application/json',
@@ -74,24 +73,22 @@ const TaxCalculator = () => {
         }
     };
 
-    // --- NEW: PDF GENERATION FUNCTION ---
-    const downloadPDF = () => {
+    // --- FUNCTION 1: GENERATE PDF (Hidden until paid) ---
+    const generateAndDownloadPDF = () => {
         const doc = new jsPDF();
         
-        // 1. Title & Header
         doc.setFontSize(18);
-        doc.setTextColor(40, 167, 69); // Green color
-        doc.text("TaxBuddy Report", 14, 20);
+        doc.setTextColor(40, 167, 69);
+        doc.text("TaxBuddy Premium Report", 14, 20);
         
         doc.setFontSize(10);
         doc.setTextColor(100);
         doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 26);
         if(user) doc.text(`User: ${user.name}`, 14, 30);
+        doc.text(`Payment Status: PAID`, 14, 34); // Mark as Paid
 
-        // 2. Income Summary Table
-        // FIX 2: Use autoTable(doc, options) instead of doc.autoTable
         autoTable(doc, {
-            startY: 35,
+            startY: 40,
             head: [['Income Head', 'Amount (Rs)']],
             body: [
                 ['Basic Salary', formData.basic || 0],
@@ -101,10 +98,9 @@ const TaxCalculator = () => {
                 ['Gross Total Income', result.grossTotalIncome]
             ],
             theme: 'grid',
-            headStyles: { fillColor: [0, 123, 255] } // Blue header
+            headStyles: { fillColor: [0, 123, 255] }
         });
 
-        // 3. Tax Calculation Table
         autoTable(doc, {
             startY: doc.lastAutoTable.finalY + 10,
             head: [['Category', 'Old Regime', 'New Regime']],
@@ -115,16 +111,14 @@ const TaxCalculator = () => {
             theme: 'striped'
         });
 
-        // 4. Recommendation
         doc.setFontSize(12);
         doc.setTextColor(0);
         doc.text(`Recommendation: ${result.recommendation}`, 14, doc.lastAutoTable.finalY + 10);
         if (result.savings > 0) {
-            doc.setTextColor(0, 128, 0); // Green
+            doc.setTextColor(0, 128, 0);
             doc.text(`Projected Savings: Rs. ${result.savings}`, 14, doc.lastAutoTable.finalY + 16);
         }
 
-        // 5. Advance Tax (if applicable)
         if (result.advanceTax && result.advanceTax.applicable) {
             doc.text("Advance Tax Schedule:", 14, doc.lastAutoTable.finalY + 24);
             autoTable(doc, {
@@ -132,12 +126,54 @@ const TaxCalculator = () => {
                 head: [['Due Date', '% Due', 'Amount']],
                 body: result.advanceTax.schedule.map(row => [row.dueDate, row.percentage, row.amountDue]),
                 theme: 'grid',
-                headStyles: { fillColor: [220, 53, 69] } // Red header
+                headStyles: { fillColor: [220, 53, 69] }
             });
         }
 
-        // Save the file
-        doc.save("TaxBuddy_Report.pdf");
+        doc.save("TaxBuddy_Premium_Report.pdf");
+    };
+
+    // --- FUNCTION 2: HANDLE PAYMENT ---
+    const handlePayment = async () => {
+        try {
+            // 1. Create Order on Backend
+            const { data: order } = await axios.post('https://taxbuddy-o5wu.onrender.com/api/payment/create-order');
+
+            // 2. Configure Razorpay Options
+            const options = {
+                key:"rzp_test_RpW1q1Qc3IGHKW", // <--- REPLACE THIS WITH YOUR ACTUAL KEY ID (rzp_test_...)
+                amount: order.amount,
+                currency: "INR",
+                name: "TaxBuddy SaaS",
+                description: "Premium Tax Report",
+                order_id: order.id,
+                handler: async function (response) {
+                    // 3. Payment Success!
+                    alert("Payment Successful! Downloading Report...");
+                    
+                    // (Optional: Verify payment on backend here)
+                    // await axios.post('.../verify', response);
+
+                    // 4. Download PDF
+                    generateAndDownloadPDF();
+                },
+                prefill: {
+                    name: user ? user.name : "Guest User",
+                    email: user ? user.email : "guest@example.com",
+                },
+                theme: {
+                    color: "#3399cc",
+                },
+            };
+
+            // 5. Open Razorpay
+            const rzp1 = new window.Razorpay(options);
+            rzp1.open();
+
+        } catch (error) {
+            console.error("Payment Error:", error);
+            alert("Could not initiate payment. Check backend.");
+        }
     };
 
     const logout = () => {
@@ -218,26 +254,28 @@ const TaxCalculator = () => {
                         {result.savings > 0 && <span> (Save ₹{result.savings})</span>}
                     </div>
 
-                    {/* NEW: Download PDF Button */}
+                    {/* NEW: Pay to Download Button */}
                     <button 
-                        onClick={downloadPDF} 
+                        onClick={handlePayment} 
                         style={{ 
                             marginTop: '20px', 
-                            padding: '10px 20px', 
-                            background: '#17a2b8', 
-                            color: 'white', 
+                            padding: '12px 20px', 
+                            background: '#ffc107', 
+                            color: '#000', 
                             border: 'none', 
                             borderRadius: '5px', 
                             cursor: 'pointer',
                             fontSize: '16px',
+                            fontWeight: 'bold',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: '10px',
-                            width: '100%'
+                            width: '100%',
+                            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
                         }}
                     >
-                        📄 Download Report as PDF
+                        🔒 Pay ₹49 to Download Detailed Report
                     </button>
 
                     {result.suggestions && result.suggestions.length > 0 && (
