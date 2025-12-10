@@ -4,6 +4,7 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
+import logo from '../assets/rb_logo.png';
 import './TaxCalculator.css';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -26,47 +27,52 @@ const Dashboard = () => {
         try {
             const { data } = await axios.get(`https://taxbuddy-o5wu.onrender.com/api/tax/history?userId=${userId}`);
             setHistory(data);
+            if (data.length > 0) updateChart(data[0]);
+        } catch (error) { console.error("Error fetching history"); }
+    };
 
-            if (data.length > 0) {
-                const latest = data[0];
-                // Safe parsing to handle both Salaried and Business structures
-                const salaryIncome = (latest.income.salary?.basic || 0) + (latest.income.salary?.hra || 0) + (latest.income.salary?.specialAllowance || 0);
-                const businessIncome = latest.income.otherSources?.businessProfit || 0;
-                const totalIncome = salaryIncome + businessIncome;
-                
-                const tax = latest.computedTax.taxPayable;
-                const investments = (latest.deductions.section80C || 0) + (latest.deductions.section80D || 0);
-                const takeHome = Math.max(0, totalIncome - tax - investments);
+    const updateChart = (latest) => {
+        const income = (latest.income.salary?.basic || 0) + (latest.income.otherSources?.businessProfit || 0);
+        const tax = latest.computedTax.taxPayable;
+        const invest = (latest.deductions?.section80C || 0) + (latest.deductions?.section80D || 0);
+        setChartData({
+            labels: ['Tax', 'Investments', 'Net Income'],
+            datasets: [{ data: [tax, invest, Math.max(0, income - tax - invest)], backgroundColor: ['#dc3545', '#007bff', '#28a745'] }]
+        });
+    };
 
-                setChartData({
-                    labels: ['Tax', 'Investments', 'Net Income'],
-                    datasets: [{
-                        data: [tax, investments, takeHome],
-                        backgroundColor: ['#dc3545', '#007bff', '#28a745'],
-                    }],
-                });
-            }
-        } catch (error) {
-            console.error("Error fetching history");
-        }
+    // --- DELETE FUNCTION ---
+    const handleDelete = async (id) => {
+        if(!window.confirm("Are you sure you want to delete this record?")) return;
+        try {
+            await axios.delete(`https://taxbuddy-o5wu.onrender.com/api/tax/${id}`);
+            const updatedHistory = history.filter(rec => rec._id !== id);
+            setHistory(updatedHistory);
+            if (updatedHistory.length > 0) updateChart(updatedHistory[0]);
+            else setChartData(null);
+        } catch (error) { alert("Delete failed"); }
     };
 
     return (
         <div className="calculator-container" style={{maxWidth: '1000px'}}>
              <div className="header-actions">
-                <div><h2>📊 Dashboard</h2></div>
-                <div style={{display:'flex', gap:'10px'}}>
+                <div>
+                    <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                        <img src={logo} alt="Logo" style={{height:'35px'}} />
+                        <h2 style={{margin:0}}>Artha by RB</h2>
+                    </div>
+                    <small>Dashboard</small>
+                </div>
+                <div>
                      <Link to="/calculator" className="toggle-btn" style={{textDecoration:'none', background:'#28a745', color:'white'}}>+ New Calculation</Link>
                 </div>
             </div>
 
-            {/* Chart Section */}
-            <div style={{display: 'flex', flexWrap: 'wrap', gap: '20px', marginBottom: '30px'}}>
-                <div style={{flex: 1, background: 'white', padding: '20px', borderRadius: '10px', border:'1px solid #ddd'}}>
-                    <h4 style={{textAlign:'center'}}>Latest Financial Split</h4>
-                    {chartData ? <div style={{height: '200px', display:'flex', justifyContent:'center'}}><Pie data={chartData} options={{maintainAspectRatio:false}} /></div> : <p style={{textAlign:'center'}}>No data.</p>}
+            {chartData && (
+                <div style={{background:'white', padding:'20px', borderRadius:'10px', border:'1px solid #ddd', marginBottom:'30px', display:'flex', justifyContent:'center'}}>
+                    <div style={{height:'200px'}}><Pie data={chartData} options={{maintainAspectRatio:false}} /></div>
                 </div>
-            </div>
+            )}
 
             <h3>Calculation History</h3>
             {history.length === 0 ? <p>No records found.</p> : (
@@ -74,34 +80,23 @@ const Dashboard = () => {
                     <table style={{width: '100%', borderCollapse: 'collapse', marginTop: '10px', fontSize: '14px', background:'white'}}>
                         <thead style={{background: '#343a40', color: 'white'}}>
                             <tr>
-                                {/* FIXED HEADERS */}
                                 <th style={{padding: '12px'}}>Date</th>
-                                <th style={{padding: '12px'}}>Total Income</th>
-                                <th style={{padding: '12px'}}>Regime</th>
+                                <th style={{padding: '12px'}}>FY</th>
+                                <th style={{padding: '12px'}}>Income</th>
                                 <th style={{padding: '12px'}}>Tax</th>
-                                <th style={{padding: '12px'}}>Action</th>
+                                <th style={{padding: '12px'}}>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {history.map((record) => (
                                 <tr key={record._id} style={{borderBottom: '1px solid #eee', textAlign: 'center'}}>
-                                    {/* FIXED CELLS */}
                                     <td style={{padding: '12px'}}>{new Date(record.createdAt).toLocaleDateString()}</td>
-                                    
-                                    
-                                    
-                                    <td style={{padding: '12px'}}>
-                                        ₹{((record.income.salary?.basic||0) + (record.income.salary?.hra||0) + (record.income.salary?.specialAllowance||0) + (record.income.otherSources?.businessProfit||0)).toLocaleString()}
-                                    </td>
-                                    
-                                    <td style={{padding: '12px'}}>{record.computedTax.regimeSelected}</td>
-                                    
+                                    <td style={{padding: '12px'}}>{record.financialYear || '2024-25'}</td>
+                                    <td style={{padding: '12px'}}>₹{((record.income.salary?.basic||0) + (record.income.otherSources?.businessProfit||0)).toLocaleString()}</td>
                                     <td style={{padding: '12px', fontWeight:'bold', color:'#dc3545'}}>₹{record.computedTax.taxPayable.toLocaleString()}</td>
-                                    
-                                    <td style={{padding: '12px'}}>
-                                        <Link to="/calculator" state={{ recordToEdit: record }} style={{textDecoration:'none', background:'#ffc107', color:'black', padding:'5px 10px', borderRadius:'4px', fontSize:'11px', fontWeight:'bold'}}>
-                                            ✏️ Edit
-                                        </Link>
+                                    <td style={{padding: '12px', display:'flex', gap:'10px', justifyContent:'center'}}>
+                                        <Link to="/calculator" state={{ recordToEdit: record }} style={{textDecoration:'none', background:'#ffc107', color:'black', padding:'5px 10px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>Edit</Link>
+                                        <button onClick={() => handleDelete(record._id)} style={{background:'#dc3545', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>🗑</button>
                                     </td>
                                 </tr>
                             ))}

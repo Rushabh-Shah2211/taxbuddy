@@ -4,407 +4,239 @@ import axios from 'axios';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import logo from '../assets/rb_logo.png'; // Make sure your logo is in this folder
-import './TaxCalculator.css'; // Uses the new refined CSS
+import logo from '../assets/rb_logo.png'; 
+import './TaxCalculator.css';
 
 const TaxCalculator = () => {
     const [user, setUser] = useState(null);
     const navigate = useNavigate();
     const location = useLocation();
 
-    // --- STATES ---
+    // States
     const [userCategory, setUserCategory] = useState('Salaried');
-    const [editModeId, setEditModeId] = useState(null);
+    const [financialYear, setFinancialYear] = useState('2024-2025'); // NEW State
     const [formData, setFormData] = useState({
-        // Salaried Inputs
         basic: '', hra: '', specialAllowance: '', bonus: '',
-        // Business Inputs
         grossReceipts: '', businessProfit: '',
-        // Deductions
         section80C: '', section80D: ''
     });
     const [result, setResult] = useState(null);
 
-    // --- 1. INITIALIZE (Load User & Check for Edit Data) ---
     useEffect(() => {
         const userInfo = localStorage.getItem('userInfo');
         if (userInfo) setUser(JSON.parse(userInfo));
 
-        // If coming from "Edit" button in Dashboard
         if (location.state && location.state.recordToEdit) {
             const record = location.state.recordToEdit;
-            setEditModeId(record._id);
             setUserCategory(record.userCategory || 'Salaried');
-
-            // Map Backend Data to Frontend Inputs
+            setFinancialYear(record.financialYear || '2024-2025');
             setFormData({
                 basic: record.income.salary?.basic || '',
                 hra: record.income.salary?.hra || '',
                 specialAllowance: record.income.salary?.specialAllowance || '',
                 bonus: record.income.salary?.bonus || '',
-                
-                // Retrieve business income (stored in otherSources in backend)
                 businessProfit: record.income.otherSources?.businessProfit || '',
                 grossReceipts: record.income.otherSources?.grossReceipts || '',
-
                 section80C: record.deductions?.section80C || '',
                 section80D: record.deductions?.section80D || '',
-            });
-
-            // Restore the Result View immediately for better UX
-            setResult({
-                ...record.computedTax,
-                grossTotalIncome: (record.income.salary?.basic || 0) + 
-                                  (record.income.salary?.hra || 0) + 
-                                  (record.income.salary?.specialAllowance || 0) + 
-                                  (record.income.otherSources?.businessProfit || 0),
-                oldRegime: { taxableIncome: 0, tax: record.computedTax.oldRegimeTax },
-                newRegime: { taxableIncome: 0, tax: record.computedTax.newRegimeTax },
-                recommendation: record.computedTax.regimeSelected,
-                savings: Math.abs(record.computedTax.oldRegimeTax - record.computedTax.newRegimeTax),
-                suggestions: [], // In edit mode, we might not re-generate tips immediately
-                advanceTax: { 
-                    applicable: record.computedTax.taxPayable > 10000, 
-                    schedule: [] // Re-calculation would generate this
-                } 
             });
         }
     }, [location]);
 
     const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-    // --- 2. CALCULATION ENGINE ---
     const calculateTax = async (e) => {
         e.preventDefault();
-        
-        // Prepare Payload based on Category
+        const apiUrl = 'https://taxbuddy-o5wu.onrender.com/api/tax/calculate';
+
         const payload = {
             userId: user ? user._id : null,
             userCategory,
+            financialYear, // Send FY
             income: {
                 salary: userCategory === 'Salaried' ? {
-                    basic: Number(formData.basic) || 0,
-                    hra: Number(formData.hra) || 0,
-                    specialAllowance: Number(formData.specialAllowance) || 0,
-                    bonus: Number(formData.bonus) || 0
-                } : {}, // Send empty salary if Business user
+                    basic: Number(formData.basic),
+                    hra: Number(formData.hra),
+                    specialAllowance: Number(formData.specialAllowance),
+                    bonus: Number(formData.bonus)
+                } : {},
                 otherSources: { 
-                    businessProfit: Number(formData.businessProfit) || 0,
-                    grossReceipts: Number(formData.grossReceipts) || 0 
-                },
-                capitalGains: { stcg: 0 }
+                    businessProfit: Number(formData.businessProfit),
+                    grossReceipts: Number(formData.grossReceipts) 
+                }
             },
             deductions: {
-                section80C: Number(formData.section80C) || 0,
-                section80D: Number(formData.section80D) || 0
+                section80C: Number(formData.section80C),
+                section80D: Number(formData.section80D)
             }
         };
 
         try {
-            const config = { 
-                headers: { 'Content-Type': 'application/json', Authorization: user ? `Bearer ${user.token}` : '' }
-            };
-            
-            // NOTE: If in Edit Mode, we typically still POST to calculate fresh values. 
-            // The PUT route we made earlier is good if you want to save without seeing results first.
-            const response = await axios.post('https://taxbuddy-o5wu.onrender.com/api/tax/calculate', payload, config);
-            
+            const config = { headers: { 'Content-Type': 'application/json', Authorization: user ? `Bearer ${user.token}` : '' }};
+            const response = await axios.post(apiUrl, payload, config);
             setResult(response.data);
-            
-            if(editModeId) {
-                // Optional: Trigger the PUT update in background if needed
-                // axios.put(`.../${editModeId}`, payload...)
-                alert("Calculation Updated! (Note: This is saved as a new record in history)");
-            }
-
         } catch (error) {
-            console.error(error);
-            alert("Calculation failed. Please check your internet connection.");
+            alert("Calculation failed.");
         }
     };
 
-    // --- 3. PDF GENERATION ---
-    const generateAndDownloadPDF = () => {
+    // --- DIRECT DOWNLOAD (No Payment) ---
+    const downloadPDF = () => {
         const doc = new jsPDF();
         
-        // Header
-        doc.setFontSize(22); 
-        doc.setTextColor(0, 51, 102); // Navy Blue
-        doc.text("TaxBuddy Report", 14, 20);
+        doc.setFontSize(22); doc.setTextColor(0, 51, 102);
+        doc.text("Artha by RB", 14, 20);
+        doc.setFontSize(12); doc.setTextColor(100);
+        doc.text("Taxes. Refined. Redefined.", 14, 26);
 
-        // Metadata
-        doc.setFontSize(10); 
-        doc.setTextColor(100);
-        doc.text(`Generated On: ${new Date().toLocaleDateString()}`, 14, 28);
-        doc.text(`User Category: ${userCategory}`, 14, 34);
-        doc.text(`Payment Status: PAID`, 14, 40);
+        doc.setFontSize(10); doc.setTextColor(0);
+        doc.text(`Financial Year: ${financialYear}`, 14, 34);
+        doc.text(`Category: ${userCategory}`, 14, 39);
+        doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 44);
 
         // Income Table
-        let bodyData = [];
-        if(userCategory === 'Salaried') {
-            bodyData = [
-                ['Basic Salary', formData.basic || 0],
-                ['HRA', formData.hra || 0],
-                ['Allowances', formData.specialAllowance || 0],
-                ['Other Business Income', formData.businessProfit || 0]
-            ];
-        } else {
-            bodyData = [
-                ['Gross Receipts', formData.grossReceipts || 0],
-                ['Net Profit / Income', formData.businessProfit || 0]
-            ];
-        }
+        let bodyData = userCategory === 'Salaried' ? 
+            [['Basic Salary', formData.basic || 0], ['HRA', formData.hra || 0], ['Allowances', formData.specialAllowance || 0], ['Other', formData.bonus || 0], ['Business Profit', formData.businessProfit || 0]] : 
+            [['Gross Receipts', formData.grossReceipts || 0], ['Net Profit', formData.businessProfit || 0]];
         
         autoTable(doc, {
-            startY: 45,
-            head: [['Income Source', 'Amount (Rs)']],
-            body: bodyData,
-            theme: 'grid',
-            headStyles: { fillColor: [0, 123, 255] }
+            startY: 50, head: [['Income Head', 'Amount (Rs)']], body: bodyData,
+            theme: 'grid', headStyles: { fillColor: [0, 123, 255] }
         });
 
-        // Tax Comparison Table
         autoTable(doc, {
             startY: doc.lastAutoTable.finalY + 10,
             head: [['Regime', 'Tax Payable']],
-            body: [
-                ['Old Regime', result.oldRegime.tax], 
-                ['New Regime', result.newRegime.tax]
-            ],
+            body: [['Old Regime', result.oldRegime.tax], ['New Regime', result.newRegime.tax]],
             theme: 'striped'
         });
 
-        // Recommendation
-        doc.setFontSize(12);
-        doc.setTextColor(0);
         doc.text(`Recommendation: ${result.recommendation}`, 14, doc.lastAutoTable.finalY + 10);
 
-        // Advance Tax Table (Only if applicable)
         if (result.advanceTax && result.advanceTax.applicable) {
             doc.text("Advance Tax Schedule:", 14, doc.lastAutoTable.finalY + 20);
             autoTable(doc, {
                 startY: doc.lastAutoTable.finalY + 24,
                 head: [['Due Date', 'Amount']],
                 body: result.advanceTax.schedule.map(r => [r.dueDate, r.amountDue]),
-                theme: 'grid',
-                headStyles: { fillColor: [220, 53, 69] }
+                theme: 'grid'
             });
         }
-
-        doc.save(`TaxReport_${userCategory}.pdf`);
+        doc.save(`Artha_Report_${financialYear}.pdf`);
     };
 
-    // --- 4. PAYMENT LOGIC ---
-    const handlePayment = async () => {
-        try {
-            // Create Order
-            const { data: order } = await axios.post('https://taxbuddy-o5wu.onrender.com/api/payment/create-order');
-            
-            // Razorpay Options
-            const options = {
-                key: "rzp_test_RpW1q1Qc3IGHKW", // <--- REPLACE THIS WITH YOUR ACTUAL KEY ID (rzp_test_...)
-                amount: order.amount,
-                currency: "INR",
-                name: "TaxBuddy Premium",
-                description: "Detailed Tax Report",
-                order_id: order.id,
-                handler: function (response) {
-                    alert("Payment Successful! Downloading Report...");
-                    generateAndDownloadPDF();
-                },
-                theme: { color: "#3399cc" }
-            };
-            
-            const rzp1 = new window.Razorpay(options);
-            rzp1.open();
-
-        } catch (error) {
-            console.error("Payment Error:", error);
-            alert("Could not initiate payment. Check Backend Keys.");
-        }
-    };
-
-    const logout = () => {
-        localStorage.removeItem('userInfo');
-        navigate('/');
-    };
+    const logout = () => { localStorage.removeItem('userInfo'); navigate('/'); };
 
     return (
         <div className="calculator-container">
-            {/* --- HEADER --- */}
             <div className="header-actions">
                 <div>
                     <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
                         <img src={logo} alt="Logo" style={{height:'35px'}} />
-                        <h2 style={{margin:0}}>Tax Planner {editModeId ? '(Edit Mode)' : ''}</h2>
+                        <h2 style={{margin:0}}>Artha by RB</h2>
                     </div>
-                    <small>Smart Tool for {userCategory} Users</small>
+                    <small>Taxes. Refined. Redefined.</small>
                 </div>
                 <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
                     {user && (
                         <>
                             <Link to="/profile" className="btn-secondary">👤 Profile</Link>
-                            <Link to="/dashboard" className="btn-secondary">View History</Link>
+                            <Link to="/dashboard" className="btn-secondary">History</Link>
                             <button onClick={logout} className="btn-danger">Logout</button>
                         </>
                     )}
                 </div>
             </div>
 
-            {/* --- TOGGLE --- */}
-            <div className="user-type-toggle">
-                <button 
-                    type="button" 
-                    className={`toggle-btn ${userCategory === 'Salaried' ? 'active' : ''}`} 
-                    onClick={() => setUserCategory('Salaried')}
-                >
-                    👨‍💼 Salaried (Salary + Business)
-                </button>
-                <button 
-                    type="button" 
-                    className={`toggle-btn ${userCategory === 'Business' ? 'active' : ''}`} 
-                    onClick={() => setUserCategory('Business')}
-                >
-                    🏢 Business Only (No Salary)
-                </button>
+            {/* CONTROLS ROW: Category & Financial Year */}
+            <div style={{display:'flex', gap:'20px', marginBottom:'20px'}}>
+                <div className="user-type-toggle" style={{flex:1, marginBottom:0}}>
+                    <button type="button" className={`toggle-btn ${userCategory === 'Salaried' ? 'active' : ''}`} onClick={() => setUserCategory('Salaried')}>Salaried</button>
+                    <button type="button" className={`toggle-btn ${userCategory === 'Business' ? 'active' : ''}`} onClick={() => setUserCategory('Business')}>Business</button>
+                </div>
+                
+                <div style={{flex:1}}>
+                    <select 
+                        value={financialYear} 
+                        onChange={(e) => setFinancialYear(e.target.value)}
+                        style={{width:'100%', padding:'12px', borderRadius:'10px', border:'1px solid #ccc', background:'#f1f3f6', fontWeight:'bold', color:'#555'}}
+                    >
+                        <option value="2024-2025">FY 2024-25 (Return filed in 2025)</option>
+                        <option value="2023-2024">FY 2023-24 (Return filed in 2024)</option>
+                    </select>
+                </div>
             </div>
             
             <form onSubmit={calculateTax}>
-                {/* --- INPUTS FOR SALARIED --- */}
-                {userCategory === 'Salaried' && (
-                    <div className="section-card">
-                        <div className="section-title">Salary Income</div>
+                {userCategory === 'Salaried' ? (
+                     <div className="section-card"><div className="section-title">Salary Info</div>
                         <div className="form-grid">
-                            <div className="input-group">
-                                <label>Basic Salary</label>
-                                <input type="number" name="basic" value={formData.basic} onChange={handleChange} />
-                            </div>
-                            <div className="input-group">
-                                <label>HRA Received</label>
-                                <input type="number" name="hra" value={formData.hra} onChange={handleChange} />
-                            </div>
-                            <div className="input-group">
-                                <label>Special Allowances</label>
-                                <input type="number" name="specialAllowance" value={formData.specialAllowance} onChange={handleChange} />
-                            </div>
-                            <div className="input-group">
-                                <label>Bonus / Arrears</label>
-                                <input type="number" name="bonus" value={formData.bonus} onChange={handleChange} />
-                            </div>
+                            <input placeholder="Basic Salary" name="basic" value={formData.basic} onChange={handleChange} />
+                            <input placeholder="HRA" name="hra" value={formData.hra} onChange={handleChange} />
+                            <input placeholder="Special Allowance" name="specialAllowance" value={formData.specialAllowance} onChange={handleChange} />
+                            <input placeholder="Bonus" name="bonus" value={formData.bonus} onChange={handleChange} />
+                        </div>
+                     </div>
+                ) : (
+                    <div className="section-card"><div className="section-title">Business Info</div>
+                        <div className="form-grid">
+                             <input placeholder="Gross Receipts" name="grossReceipts" value={formData.grossReceipts} onChange={handleChange} />
+                             <input placeholder="Net Profit" name="businessProfit" value={formData.businessProfit} onChange={handleChange} />
                         </div>
                     </div>
                 )}
 
-                {/* --- INPUTS FOR BUSINESS --- */}
-                <div className="section-card">
-                    <div className="section-title">{userCategory === 'Salaried' ? 'Other Sources / Business' : 'Business Income'}</div>
-                    <div className="form-grid">
-                        <div className="input-group">
-                            <label>Gross Receipts / Turnover</label>
-                            <input type="number" name="grossReceipts" value={formData.grossReceipts} onChange={handleChange} placeholder="Total Revenue" />
-                        </div>
-                        <div className="input-group">
-                            <label>{userCategory === 'Business' ? 'Net Profit (Taxable)' : 'Net Business Income'}</label>
-                            <input type="number" name="businessProfit" value={formData.businessProfit} onChange={handleChange} placeholder="Actual Profit" />
+                {/* Shared Business Income for Salaried */}
+                {userCategory === 'Salaried' && (
+                    <div className="section-card"><div className="section-title">Other Income</div>
+                        <div className="form-grid">
+                            <input placeholder="Side Business / Freelance Profit" name="businessProfit" value={formData.businessProfit} onChange={handleChange} />
                         </div>
                     </div>
-                </div>
-
-                {/* --- DEDUCTIONS --- */}
-                <div className="section-card">
-                    <div className="section-title">Deductions (Old Regime)</div>
+                )}
+                
+                <div className="section-card"><div className="section-title">Deductions</div>
                     <div className="form-grid">
-                        <div className="input-group">
-                            <label>80C (LIC/PPF) - Max 1.5L</label>
-                            <input type="number" name="section80C" value={formData.section80C} onChange={handleChange} />
-                        </div>
-                        <div className="input-group">
-                            <label>80D (Health Insurance)</label>
-                            <input type="number" name="section80D" value={formData.section80D} onChange={handleChange} />
-                        </div>
+                        <input placeholder="80C" name="section80C" value={formData.section80C} onChange={handleChange} />
+                        <input placeholder="80D" name="section80D" value={formData.section80D} onChange={handleChange} />
                     </div>
                 </div>
-
                 <button type="submit" className="btn-primary">Calculate Tax</button>
             </form>
 
-            {/* --- RESULTS SECTION --- */}
             {result && (
                 <div style={{marginTop: '40px'}}>
-                    <h3 style={{borderBottom:'1px solid #ddd', paddingBottom:'10px'}}>Calculation Results</h3>
-                    
-                    {/* Comparison Cards */}
                     <div className="result-container">
                         <div className={`result-card ${result.recommendation === "Old Regime" ? "winner" : ""}`}>
                             <h3>Old Regime</h3>
                             <h2>₹{Math.round(result.oldRegime.tax).toLocaleString()}</h2>
-                            <small>Taxable Income: ₹{result.oldRegime.taxableIncome.toLocaleString()}</small>
                         </div>
                         <div className={`result-card ${result.recommendation === "New Regime" ? "winner" : ""}`}>
                             <h3>New Regime</h3>
                             <h2>₹{Math.round(result.newRegime.tax).toLocaleString()}</h2>
-                            <small>Taxable Income: ₹{result.newRegime.taxableIncome.toLocaleString()}</small>
                         </div>
                     </div>
 
-                    {/* Recommendation Banner */}
-                    <div className="recommendation-banner" style={{marginTop:'20px', padding:'15px', background:'#e0f7fa', color:'#006064', borderRadius:'8px', textAlign:'center', fontSize:'16px'}}>
-                        <strong>Recommendation:</strong> Based on your inputs, you should opt for the <strong>{result.recommendation}</strong>.
-                        {result.savings > 0 && <span> You will save <strong>₹{result.savings.toLocaleString()}</strong>.</span>}
+                    <div className="recommendation-banner" style={{marginTop:'20px', padding:'15px', background:'#e0f7fa', color:'#006064', borderRadius:'8px', textAlign:'center'}}>
+                        Recommendation: <strong>{result.recommendation}</strong> (FY: {financialYear})
                     </div>
 
-                    {/* Smart Tips */}
-                    {result.suggestions && result.suggestions.length > 0 && (
-                        <div className="tips-box">
-                            <h4 style={{marginTop:0, color:'#856404'}}>💡 Tax Saving Tips</h4>
-                            <ul style={{margin:0, paddingLeft:'20px', color:'#856404'}}>
-                                {result.suggestions.map((tip, i) => <li key={i}>{tip}</li>)}
-                            </ul>
-                        </div>
-                    )}
-
-                    {/* Advance Tax Schedule */}
-                    {result.advanceTax && result.advanceTax.applicable && (
-                        <div style={{marginTop: '30px'}}>
-                            <h4 style={{color:'#d9534f'}}>📅 Advance Tax Liability (Tax > ₹10,000)</h4>
-                            <table style={{width: '100%', borderCollapse: 'collapse', marginTop: '10px', fontSize:'14px'}}>
-                                <thead>
-                                    <tr style={{background:'#f8f9fa', textAlign:'left'}}>
-                                        <th style={{padding:'10px', borderBottom:'2px solid #ddd'}}>Due Date</th>
-                                        <th style={{padding:'10px', borderBottom:'2px solid #ddd'}}>Installment</th>
-                                        <th style={{padding:'10px', borderBottom:'2px solid #ddd'}}>Amount Payable</th>
-                                    </tr>
-                                </thead>
+                    {result.advanceTax?.applicable && (
+                        <div style={{marginTop: '20px'}}>
+                            <h4 style={{color:'#d9534f'}}>Advance Tax Schedule</h4>
+                            <table style={{width: '100%', borderCollapse: 'collapse', fontSize:'14px'}}>
                                 <tbody>
                                     {result.advanceTax.schedule.map((row, i) => (
-                                        <tr key={i}>
-                                            <td style={{padding:'10px', borderBottom:'1px solid #eee'}}>{row.dueDate}</td>
-                                            <td style={{padding:'10px', borderBottom:'1px solid #eee'}}>{row.percentage}</td>
-                                            <td style={{padding:'10px', borderBottom:'1px solid #eee', fontWeight:'bold'}}>₹{row.amountDue.toLocaleString()}</td>
-                                        </tr>
+                                        <tr key={i}><td style={{padding:'5px', borderBottom:'1px solid #eee'}}>{row.dueDate}</td><td style={{padding:'5px', borderBottom:'1px solid #eee'}}>₹{row.amountDue.toLocaleString()}</td></tr>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
                     )}
 
-                    {/* Pay Button */}
-                    <button 
-                        onClick={handlePayment} 
-                        style={{
-                            marginTop: '30px', 
-                            padding: '16px', 
-                            background: '#ffc107', 
-                            width: '100%', 
-                            border: 'none', 
-                            borderRadius: '8px', 
-                            fontWeight: 'bold', 
-                            fontSize:'18px', 
-                            cursor: 'pointer',
-                            boxShadow: '0 4px 10px rgba(0,0,0,0.1)'
-                        }}
-                    >
-                        🔒 Pay ₹49 to Download Detailed Report
+                    {/* DIRECT DOWNLOAD BUTTON */}
+                    <button onClick={downloadPDF} style={{marginTop: '30px', padding: '16px', background: '#28a745', width: '100%', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize:'18px', color:'white', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)'}}>
+                        📄 Download Detailed Report (Free)
                     </button>
                 </div>
             )}
