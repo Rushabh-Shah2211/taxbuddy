@@ -1,144 +1,190 @@
 /* client/src/components/TaxCalculator.css */
-@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap'); 
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap');
 
-/* Fallback to Open Sans if Calibri isn't local, but prioritize Calibri */
 body {
-    font-family: 'Calibri', 'Open Sans', sans-serif;
-    background-color: #f4f7f6;
-    color: #333;
+    font-family: 'Calibri', 'Open Sans', sans-serif; /* Priority to Calibri */
+    background-color: #f0f2f5;
     margin: 0;
+    color: #1a1a1a;
 }
 
 .calculator-container {
-    max-width: 900px;
-    margin: 40px auto;
-    padding: 30px;
+    max-width: 1000px;
+    margin: 30px auto;
+    padding: 40px;
     background: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
 }
 
-h2, h3 { color: #2c3e50; margin-bottom: 20px; }
-
-/* Header Actions */
+/* Header */
 .header-actions {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 2px solid #f0f0f0;
-    padding-bottom: 15px;
-    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #eaeaea;
+    margin-bottom: 30px;
 }
+.header-actions h2 { font-size: 24px; color: #333; }
+.header-actions small { color: #888; font-size: 14px; }
 
-/* Toggle Switch for Business User */
+/* Toggle Switch (Segmented Control) */
 .user-type-toggle {
     display: flex;
-    gap: 15px;
-    background: #eef2f5;
+    background: #f1f3f6;
     padding: 5px;
-    border-radius: 8px;
-    margin-bottom: 20px;
+    border-radius: 10px;
+    margin-bottom: 35px;
+    position: relative;
 }
 
 .toggle-btn {
     flex: 1;
-    padding: 10px 20px;
+    padding: 12px;
     border: none;
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: pointer;
-    font-weight: bold;
+    font-size: 15px;
+    font-weight: 600;
     color: #666;
     background: transparent;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
 }
 
 .toggle-btn.active {
-    background-color: #007bff;
-    color: white;
-    box-shadow: 0 2px 5px rgba(0,123,255,0.3);
+    background-color: #ffffff;
+    color: #007bff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
-/* Form Styling */
+/* Input Sections */
 .section-card {
     background: #fff;
-    border: 1px solid #e1e4e8;
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 20px;
+    margin-bottom: 30px;
 }
 
 .section-title {
-    font-size: 16px;
-    font-weight: bold;
-    color: #555;
+    font-size: 18px;
+    font-weight: 600;
+    color: #2c3e50;
     margin-bottom: 15px;
-    border-left: 4px solid #007bff;
-    padding-left: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.section-title::before {
+    content: '';
+    display: block;
+    width: 4px;
+    height: 18px;
+    background: #007bff;
+    border-radius: 2px;
 }
 
 .form-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
+    grid-template-columns: repeat(2, 1fr); /* Force 2 columns */
+    gap: 20px;
+}
+
+.input-group { position: relative; }
+.input-group label {
+    display: block;
+    font-size: 13px;
+    color: #555;
+    margin-bottom: 6px;
+    font-weight: 500;
 }
 
 .input-group input {
     width: 100%;
-    padding: 12px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    font-size: 15px;
-    transition: border 0.3s;
+    padding: 14px;
+    border: 1px solid #e1e4e8;
+    border-radius: 8px;
+    font-size: 16px;
+    font-family: 'Calibri', sans-serif;
+    background: #f9f9f9;
+    transition: 0.2s;
+    box-sizing: border-box; /* Fixes width overflow */
 }
 
 .input-group input:focus {
+    background: #fff;
     border-color: #007bff;
+    box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
     outline: none;
 }
 
-/* Result Cards */
+/* Result Area */
 .result-container {
     display: flex;
     gap: 20px;
-    margin-top: 30px;
+    margin-top: 40px;
 }
 
 .result-card {
     flex: 1;
-    background: #f8f9fa;
-    border: 1px solid #ddd;
-    border-radius: 10px;
-    padding: 20px;
+    background: #fff;
+    border: 1px solid #eaeaea;
+    border-radius: 12px;
+    padding: 30px;
     text-align: center;
+    transition: transform 0.2s;
 }
+
+.result-card h3 { font-size: 14px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-top: 0; }
+.result-card h2 { font-size: 32px; color: #333; margin: 10px 0 0; }
 
 .result-card.winner {
-    background: #e8f5e9;
-    border-color: #28a745;
-    position: relative;
-}
-
-.result-card.winner::after {
-    content: "Recommended";
-    position: absolute;
-    top: -10px;
-    right: 20px;
-    background: #28a745;
-    color: white;
-    padding: 2px 10px;
-    font-size: 12px;
-    border-radius: 10px;
+    border: 2px solid #28a745;
+    background: #f0fff4;
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(40, 167, 69, 0.1);
 }
 
 .btn-primary {
+    display: block;
     width: 100%;
-    padding: 15px;
-    background: #007bff;
+    padding: 16px;
+    background: linear-gradient(135deg, #007bff, #0056b3);
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: 8px;
     font-size: 16px;
+    font-weight: 600;
     cursor: pointer;
-    margin-top: 10px;
+    margin-top: 20px;
+    box-shadow: 0 4px 15px rgba(0,123,255,0.3);
+    transition: 0.2s;
 }
-.btn-primary:hover { background: #0056b3; }
+.btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+
+/* Tips Box */
+.tips-box {
+    margin-top: 30px;
+    background: #fff8e1;
+    border-left: 4px solid #ffc107;
+    padding: 20px;
+    border-radius: 4px;
+}
+
+/* Buttons */
+.btn-secondary {
+    background: #eef2f5;
+    color: #333;
+    padding: 8px 16px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+}
+.btn-danger {
+    background: #ffebeb;
+    color: #dc3545;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+}

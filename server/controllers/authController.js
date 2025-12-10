@@ -72,5 +72,33 @@ const loginUser = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+// @desc Update User Profile
+// @route PUT /api/auth/profile
+const updateProfile = async (req, res) => {
+    try {
+        const user = await User.findById(req.body._id);
+        if (user) {
+            user.name = req.body.name || user.name;
+            user.email = req.body.email || user.email;
+            if (req.body.password) {
+                // Password encryption is handled by the User model pre-save hook usually, 
+                // but since we hashed manually in register, we do it here too:
+                const salt = await bcrypt.genSalt(10);
+                user.password = await bcrypt.hash(req.body.password, salt);
+            }
+            const updatedUser = await user.save();
+            res.json({
+                _id: updatedUser._id,
+                name: updatedUser.name,
+                email: updatedUser.email,
+                token: generateToken(updatedUser._id), // Send new token
+            });
+        } else {
+            res.status(404).json({ message: 'User not found' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
-module.exports = { registerUser, loginUser };
+module.exports = { registerUser, loginUser, updateProfile };

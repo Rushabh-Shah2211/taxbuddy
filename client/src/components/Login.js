@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
 import logo from '../assets/rb_logo.png'; // Ensure you put your logo file here!
 import './Auth.css'; // New CSS file
+import { Link } from 'react-router-dom';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -37,6 +38,10 @@ const Login = () => {
                         <label>Password</label>
                         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
                     </div>
+                    <div style={{textAlign: 'right', marginBottom: '15px'}}>
+                        <Link to="/forgot-password" style={{fontSize: '12px', color: '#667eea', textDecoration: 'none'}}>Forgot Password?</Link>
+                    </div>
+                    <button type="submit" className="auth-btn">Login Securely</button>
                     <button type="submit" className="auth-btn">Login Securely</button>
                 </form>
                 <div className="auth-footer">
