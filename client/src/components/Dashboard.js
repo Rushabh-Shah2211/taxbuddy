@@ -127,26 +127,30 @@ const Dashboard = () => {
                         <tbody>
                             {history.map((record) => (
                                 <tr key={record._id} style={{ borderBottom: '1px solid #eee', textAlign: 'center', background: 'white' }}>
-                                    <td style={{ padding: '12px' }}>{new Date(record.createdAt).toLocaleDateString()}</td>
                                     <td style={{ padding: '12px' }}>
-                                        ₹{(record.income.salary.basic + record.income.salary.hra + record.income.salary.specialAllowance + record.income.salary.bonus + (record.income.capitalGains?.stcg || 0)).toLocaleString()}
+                                        {new Date(record.createdAt).toLocaleDateString()}
+                                        <br/>
+                                        <small style={{color: '#888'}}>{new Date(record.createdAt).toLocaleTimeString()}</small>
                                     </td>
+                                    <td style={{ padding: '12px' }}>{record.userCategory || 'Salaried'}</td>
+                                    <td style={{ padding: '12px' }}>₹{record.computedTax.taxPayable.toLocaleString()}</td>
                                     <td style={{ padding: '12px' }}>
-                                        ₹{(record.deductions.section80C + record.deductions.section80D).toLocaleString()}
-                                    </td>
-                                    <td style={{ padding: '12px' }}>
-                                        <span style={{ 
-                                            padding: '4px 8px', 
-                                            borderRadius: '12px', 
-                                            fontSize: '12px',
-                                            background: record.computedTax.regimeSelected === 'New Regime' ? '#d4edda' : '#fff3cd',
-                                            color: record.computedTax.regimeSelected === 'New Regime' ? '#155724' : '#856404'
-                                        }}>
-                                            {record.computedTax.regimeSelected}
-                                        </span>
-                                    </td>
-                                    <td style={{ padding: '12px', fontWeight: 'bold', color: '#dc3545' }}>
-                                        ₹{record.computedTax.taxPayable.toLocaleString()}
+                                        {/* NEW: Edit Button */}
+                                        <Link 
+                                            to="/calculator" 
+                                            state={{ recordToEdit: record }} // Pass the data to calculator
+                                            style={{
+                                                textDecoration: 'none',
+                                                background: '#ffc107',
+                                                color: 'black',
+                                                padding: '5px 10px',
+                                                borderRadius: '4px',
+                                                fontSize: '12px',
+                                                fontWeight: 'bold'
+                                            }}
+                                        >
+                                            ✏️ Edit
+                                        </Link>
                                     </td>
                                 </tr>
                             ))}
