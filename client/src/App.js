@@ -5,17 +5,18 @@ import TaxCalculator from './components/TaxCalculator';
 import Login from './components/Login';
 import Register from './components/Register';
 import Dashboard from './components/Dashboard';
-import Profile from './components/Profile'; // New
-import ForgotPassword from './components/ForgotPassword'; // New
+import Profile from './components/Profile';
+import ForgotPassword from './components/ForgotPassword'; // Import the new file
 
 function App() {
   return (
     <Router>
       <div className="App">
         <Routes>
+          {/* Public Routes */}
           <Route path="/" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} /> {/* NEW ROUTE */}
           
           {/* Protected Routes */}
           <Route path="/calculator" element={<TaxCalculator />} />
