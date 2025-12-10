@@ -45,7 +45,7 @@ const Login = () => {
                     </div>
                     
                     <div style={{textAlign: 'right', marginBottom: '15px'}}>
-                        <Link to="/forgot-password" style={{fontSize: '13px', color: '#667eea', textDecoration: 'none', fontWeight: '500'}}>
+                        <Link to="/forgot-password" style={{fontSize: '13px', color: '#4da037', textDecoration: 'none', fontWeight: '500'}}>
                             Forgot Password?
                         </Link>
                     </div>

@@ -6,7 +6,8 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    /* Updated Background: Tones of #7ed957 (Darker Green to Your Bright Green) */
+    background: linear-gradient(135deg, #4da037 0%, #7ed957 100%);
     font-family: 'Poppins', sans-serif;
     padding: 20px;
 }
@@ -15,17 +16,18 @@
     background: white;
     padding: 40px;
     border-radius: 20px;
-    box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+    /* Soft green shadow */
+    box-shadow: 0 15px 35px rgba(126, 217, 87, 0.2); 
     width: 100%;
     max-width: 420px;
     text-align: center;
 }
 
-/* --- UPDATED LOGO STYLES --- */
+/* --- LOGO STYLES --- */
 .auth-logo {
-    width: 130px; /* Increased from 80px */
+    width: 130px; 
     height: auto;
-    margin-bottom: 15px; /* Adjusted spacing */
+    margin-bottom: 15px; 
 }
 
 .logo-section h2 { 
@@ -39,19 +41,70 @@
     font-size: 15px; 
     margin-bottom: 25px; 
 }
-/* --------------------------- */
 
+/* --- INPUTS --- */
 .input-group-auth { text-align: left; margin-bottom: 15px; }
-.input-group-auth label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; font-weight: 600; }
+.input-group-auth label { 
+    display: block; 
+    font-size: 13px; 
+    color: #555; 
+    margin-bottom: 6px; 
+    font-weight: 600; 
+}
 .input-group-auth input {
-    width: 100%; padding: 12px; border: 2px solid #eee; border-radius: 8px; outline: none; transition: 0.3s; font-family: 'Poppins', sans-serif; box-sizing: border-box;
+    width: 100%; 
+    padding: 12px; 
+    border: 2px solid #eee; 
+    border-radius: 8px; 
+    outline: none; 
+    transition: 0.3s; 
+    font-family: 'Poppins', sans-serif; 
+    box-sizing: border-box;
 }
-.input-group-auth input:focus { border-color: #764ba2; background-color: #fcfaff;}
 
+/* Focus Color: Your Green */
+.input-group-auth input:focus { 
+    border-color: #7ed957; 
+    background-color: #f9fff6; /* Very light green tint */
+}
+
+/* --- BUTTONS --- */
 .auth-btn {
-    width: 100%; padding: 14px; border: none; border-radius: 8px; background: #764ba2; color: white; font-weight: bold; cursor: pointer; margin-top: 10px; transition: 0.3s; font-size: 16px;
+    width: 100%; 
+    padding: 14px; 
+    border: none; 
+    border-radius: 8px; 
+    
+    /* Main Button Color */
+    background: #7ed957; 
+    
+    color: white; 
+    font-weight: bold; 
+    cursor: pointer; 
+    margin-top: 10px; 
+    transition: 0.3s; 
+    font-size: 16px;
+    /* Text shadow to make white text pop on bright green */
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1); 
 }
-.auth-btn:hover { background: #5f3a85; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(118, 75, 162, 0.3);}
 
+.auth-btn:hover { 
+    /* Slightly darker green on hover */
+    background: #6bc446; 
+    transform: translateY(-2px); 
+    box-shadow: 0 5px 15px rgba(126, 217, 87, 0.4);
+}
+
+/* --- LINKS --- */
 .auth-footer { margin-top: 25px; font-size: 14px; color: #666;}
-.auth-footer a { color: #764ba2; text-decoration: none; font-weight: bold; }
+
+.auth-footer a { 
+    color: #4da037; /* Darker green for text readability */
+    text-decoration: none; 
+    font-weight: bold; 
+}
+
+/* Also update the Forgot Password link color inside Login.js via this class or inline style override */
+a {
+    color: #4da037;
+}
