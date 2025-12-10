@@ -2,42 +2,94 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
-import './TaxCalculator.css';
+import logo from '../assets/rb_logo.png'; 
+import './Auth.css'; // Uses the Green Theme
 
 const Register = () => {
-    const [formData, setFormData] = useState({ name: '', email: '', password: '', entityType: 'Individual' });
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
-
-    const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
     const handleRegister = async (e) => {
         e.preventDefault();
+        setLoading(true);
         try {
-            await axios.post('https://taxbuddy-o5wu.onrender.com/api/auth/register', formData);
-            alert('Registration Successful! Please Login.');
-            navigate('/');
+            // Use your Render Backend URL
+            const { data } = await axios.post('https://taxbuddy-o5wu.onrender.com/api/auth/register', {
+                name,
+                email,
+                password
+            });
+
+            // Save and Redirect
+            localStorage.setItem('userInfo', JSON.stringify(data));
+            setLoading(false);
+            navigate('/calculator');
+
         } catch (error) {
-            alert('Error registering user');
+            console.error(error);
+            setLoading(false);
+            alert('Registration Failed. Email might be in use.');
         }
     };
 
     return (
-        <div className="calculator-container">
-            <h2>Register</h2>
-            <form onSubmit={handleRegister} className="tax-form">
-                <input type="text" name="name" placeholder="Full Name" onChange={handleChange} required />
-                <input type="email" name="email" placeholder="Email" onChange={handleChange} required />
-                <input type="password" name="password" placeholder="Password" onChange={handleChange} required />
-                <select name="entityType" onChange={handleChange}>
-                    <option value="Individual">Individual</option>
-                    <option value="Company">Company</option>
-                    <option value="HUF">HUF</option>
-                </select>
-                <button type="submit" className="calculate-btn">Sign Up</button>
-            </form>
-            <p style={{marginTop: '10px'}}>
-                Already have an account? <Link to="/">Login</Link>
-            </p>
+        <div className="auth-wrapper">
+            <div className="auth-card">
+                {/* --- LOGO SECTION --- */}
+                <div className="logo-section">
+                    <img src={logo} alt="Artha by RB" className="auth-logo" />
+                    <h2>Create Account</h2>
+                    <p>Join Artha to simplify your taxes.</p>
+                </div>
+
+                {/* --- FORM SECTION --- */}
+                <form onSubmit={handleRegister}>
+                    <div className="input-group-auth">
+                        <label>Full Name</label>
+                        <input 
+                            type="text" 
+                            value={name} 
+                            onChange={(e) => setName(e.target.value)} 
+                            required 
+                            placeholder="Ex. Rahul Sharma"
+                        />
+                    </div>
+
+                    <div className="input-group-auth">
+                        <label>Email Address</label>
+                        <input 
+                            type="email" 
+                            value={email} 
+                            onChange={(e) => setEmail(e.target.value)} 
+                            required 
+                            placeholder="name@example.com"
+                        />
+                    </div>
+
+                    <div className="input-group-auth">
+                        <label>Set Password</label>
+                        <input 
+                            type="password" 
+                            value={password} 
+                            onChange={(e) => setPassword(e.target.value)} 
+                            required 
+                            placeholder="Create a strong password"
+                        />
+                    </div>
+
+                    <button type="submit" className="auth-btn" disabled={loading}>
+                        {loading ? 'Creating Account...' : 'Sign Up Free'}
+                    </button>
+                </form>
+
+                {/* --- FOOTER --- */}
+                <div className="auth-footer">
+                    Already have an account? <Link to="/">Login here</Link>
+                </div>
+            </div>
         </div>
     );
 };
