@@ -202,7 +202,7 @@ const TaxCalculator = () => {
             
             // Razorpay Options
             const options = {
-                key: "YOUR_RAZORPAY_KEY_ID_HERE", // <--- REPLACE THIS WITH YOUR ACTUAL KEY ID (rzp_test_...)
+                key: "rzp_test_RpW1q1Qc3IGHKW", // <--- REPLACE THIS WITH YOUR ACTUAL KEY ID (rzp_test_...)
                 amount: order.amount,
                 currency: "INR",
                 name: "TaxBuddy Premium",
