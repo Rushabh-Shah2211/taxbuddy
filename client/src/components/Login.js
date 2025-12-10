@@ -1,8 +1,8 @@
-// client/src/components/Login.js
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
-import './TaxCalculator.css'; // Reusing CSS for simplicity
+import logo from '../assets/rb_logo.png'; // Ensure you put your logo file here!
+import './Auth.css'; // New CSS file
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -13,28 +13,36 @@ const Login = () => {
         e.preventDefault();
         try {
             const { data } = await axios.post('https://taxbuddy-o5wu.onrender.com/api/auth/login', { email, password });
-            
-            // Save the user info and token to local storage (browser memory)
             localStorage.setItem('userInfo', JSON.stringify(data));
-            
-            alert('Login Successful!');
-            navigate('/calculator'); // Go to calculator after login
+            navigate('/calculator');
         } catch (error) {
             alert('Invalid Credentials');
         }
     };
 
     return (
-        <div className="calculator-container">
-            <h2>Login</h2>
-            <form onSubmit={handleLogin} className="tax-form">
-                <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                <button type="submit" className="calculate-btn">Login</button>
-            </form>
-            <p style={{marginTop: '10px'}}>
-                New here? <Link to="/register">Register</Link>
-            </p>
+        <div className="auth-wrapper">
+            <div className="auth-card">
+                <div className="logo-section">
+                    <img src={logo} alt="RB TaxBuddy" className="auth-logo" />
+                    <h2>Welcome Back</h2>
+                    <p>Login to manage your taxes efficiently</p>
+                </div>
+                <form onSubmit={handleLogin}>
+                    <div className="input-group-auth">
+                        <label>Email Address</label>
+                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                    </div>
+                    <div className="input-group-auth">
+                        <label>Password</label>
+                        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                    </div>
+                    <button type="submit" className="auth-btn">Login Securely</button>
+                </form>
+                <div className="auth-footer">
+                    New here? <Link to="/register">Create an account</Link>
+                </div>
+            </div>
         </div>
     );
 };

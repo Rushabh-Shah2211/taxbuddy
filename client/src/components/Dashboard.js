@@ -76,7 +76,6 @@ const Dashboard = () => {
                             <tr>
                                 {/* FIXED HEADERS */}
                                 <th style={{padding: '12px'}}>Date</th>
-                                <th style={{padding: '12px'}}>Category</th>
                                 <th style={{padding: '12px'}}>Total Income</th>
                                 <th style={{padding: '12px'}}>Regime</th>
                                 <th style={{padding: '12px'}}>Tax</th>
@@ -89,11 +88,7 @@ const Dashboard = () => {
                                     {/* FIXED CELLS */}
                                     <td style={{padding: '12px'}}>{new Date(record.createdAt).toLocaleDateString()}</td>
                                     
-                                    <td style={{padding: '12px'}}>
-                                        <span style={{padding:'4px 8px', borderRadius:'10px', fontSize:'12px', background: record.userCategory === 'Business' ? '#e2e6ea' : '#d1ecf1'}}>
-                                            {record.userCategory || 'Salaried'}
-                                        </span>
-                                    </td>
+                                    
                                     
                                     <td style={{padding: '12px'}}>
                                         ₹{((record.income.salary?.basic||0) + (record.income.salary?.hra||0) + (record.income.salary?.specialAllowance||0) + (record.income.otherSources?.businessProfit||0)).toLocaleString()}
