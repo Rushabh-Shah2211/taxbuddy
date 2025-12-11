@@ -1,4 +1,3 @@
-// server/controllers/authController.js
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
@@ -12,7 +11,7 @@ const generateToken = (id) => {
     });
 };
 
-// @desc    Register new user
+// @desc Register
 const registerUser = async (req, res) => {
     try {
         const { name, email, password } = req.body;
@@ -27,12 +26,7 @@ const registerUser = async (req, res) => {
         const user = await User.create({ name, email, password: hashedPassword });
 
         if (user) {
-            res.status(201).json({
-                _id: user.id,
-                name: user.name,
-                email: user.email,
-                token: generateToken(user.id),
-            });
+            res.status(201).json({ _id: user.id, name: user.name, email: user.email, token: generateToken(user.id) });
         } else {
             res.status(400).json({ message: 'Invalid user data' });
         }
@@ -41,19 +35,14 @@ const registerUser = async (req, res) => {
     }
 };
 
-// @desc    Authenticate a user
+// @desc Login
 const loginUser = async (req, res) => {
     try {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
 
         if (user && (await bcrypt.compare(password, user.password))) {
-            res.json({
-                _id: user.id,
-                name: user.name,
-                email: user.email,
-                token: generateToken(user.id),
-            });
+            res.json({ _id: user.id, name: user.name, email: user.email, token: generateToken(user.id) });
         } else {
             res.status(400).json({ message: 'Invalid credentials' });
         }
@@ -62,7 +51,7 @@ const loginUser = async (req, res) => {
     }
 };
 
-// @desc    Update User Profile
+// @desc Update Profile
 const updateProfile = async (req, res) => {
     try {
         const user = await User.findById(req.body._id);
@@ -74,12 +63,7 @@ const updateProfile = async (req, res) => {
                 user.password = await bcrypt.hash(req.body.password, salt);
             }
             const updatedUser = await user.save();
-            res.json({
-                _id: updatedUser._id,
-                name: updatedUser.name,
-                email: updatedUser.email,
-                token: generateToken(updatedUser._id),
-            });
+            res.json({ _id: updatedUser._id, name: updatedUser.name, email: updatedUser.email, token: generateToken(updatedUser._id) });
         } else {
             res.status(404).json({ message: 'User not found' });
         }
@@ -88,7 +72,7 @@ const updateProfile = async (req, res) => {
     }
 };
 
-// @desc    Forgot Password
+// @desc Forgot Password
 const forgotPassword = async (req, res) => {
     const { email } = req.body;
     try {
@@ -104,15 +88,14 @@ const forgotPassword = async (req, res) => {
         const resetUrl = `https://taxbuddy-delta.vercel.app/reset-password/${resetToken}`;
         const message = `
             <h1>Password Reset Request</h1>
-            <p>You requested a password reset for Artha by RB.</p>
-            <p>Click below to reset:</p>
+            <p>Click below to reset your password:</p>
             <a href="${resetUrl}">${resetUrl}</a>
         `;
 
         try {
             await sendEmail({
                 email: user.email,
-                subject: 'Artha Password Reset Token',
+                subject: 'Artha Password Reset',
                 message
             });
             res.json({ success: true, data: "Email sent" });
@@ -120,14 +103,14 @@ const forgotPassword = async (req, res) => {
             user.resetPasswordToken = undefined;
             user.resetPasswordExpire = undefined;
             await user.save();
-            return res.status(500).json({ message: "Email could not be sent" });
+            return res.status(500).json({ message: "Email send failed" });
         }
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-// @desc    Reset Password
+// @desc Reset Password
 const resetPassword = async (req, res) => {
     try {
         const resetPasswordToken = crypto.createHash('sha256').update(req.params.resetToken).digest('hex');
@@ -136,7 +119,7 @@ const resetPassword = async (req, res) => {
             resetPasswordExpire: { $gt: Date.now() }
         });
 
-        if (!user) return res.status(400).json({ message: "Invalid or Expired Token" });
+        if (!user) return res.status(400).json({ message: "Invalid Token" });
 
         const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(req.body.password, salt);
@@ -144,7 +127,7 @@ const resetPassword = async (req, res) => {
         user.resetPasswordExpire = undefined;
 
         await user.save();
-        res.json({ success: true, message: "Password Updated Successfully" });
+        res.json({ success: true, message: "Password Updated" });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
