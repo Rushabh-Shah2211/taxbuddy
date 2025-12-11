@@ -1,15 +1,7 @@
 // server/routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
-
-// Import ONLY from the controller
-const { 
-    registerUser, 
-    loginUser, 
-    updateProfile, 
-    forgotPassword, 
-    resetPassword 
-} = require('../controllers/authController');
+const { registerUser, loginUser, updateProfile, forgotPassword, resetPassword } = require('../controllers/authController');
 
 router.post('/register', registerUser);
 router.post('/login', loginUser);
