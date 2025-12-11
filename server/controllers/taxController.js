@@ -91,7 +91,7 @@ const getGeminiTips = async (userData) => {
 
     try {
         // UPDATED MODEL NAME HERE
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         
         // Calculate Assessment Year (Usually FY + 1)
         const fyParts = userData.financialYear.split('-');
