@@ -3,34 +3,30 @@ const mongoose = require('mongoose');
 
 const taxRecordSchema = mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'User' },
-    
-    // NEW: Category Field
-    userCategory: { type: String, enum: ['Salaried', 'Business'], default: 'Salaried' },
-
+    userCategory: { type: String, default: 'Salaried' },
     financialYear: { type: String, default: "2024-2025" },
     
     income: {
         salary: {
-            basic: { type: Number, default: 0 },
-            hra: { type: Number, default: 0 },
-            specialAllowance: { type: Number, default: 0 },
-            bonus: { type: Number, default: 0 }
+            basic: Number, hra: Number, specialAllowance: Number, bonus: Number
         },
-        otherSources: { type: Map, of: Number },
+        houseProperty: { type: Number, default: 0 }, // New: Rental Income or Loss
         capitalGains: {
-            stcg: { type: Number, default: 0 },
-            ltcg: { type: Number, default: 0 }
+            stcg: { type: Number, default: 0 }, // Short Term
+            ltcg: { type: Number, default: 0 }  // Long Term
+        },
+        otherSources: {
+            businessProfit: Number,
+            grossReceipts: Number,
+            interestIncome: { type: Number, default: 0 }, // New: Savings/FD Interest
+            otherIncome: { type: Number, default: 0 }
         }
     },
     deductions: {
-        section80C: { type: Number, default: 0 },
-        section80D: { type: Number, default: 0 }
+        section80C: Number, section80D: Number
     },
     computedTax: {
-        oldRegimeTax: { type: Number, default: 0 },
-        newRegimeTax: { type: Number, default: 0 },
-        taxPayable: { type: Number, default: 0 },
-        regimeSelected: { type: String, default: 'New' }
+        oldRegimeTax: Number, newRegimeTax: Number, taxPayable: Number, regimeSelected: String
     }
 }, { timestamps: true });
 
