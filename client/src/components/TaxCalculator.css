@@ -361,3 +361,28 @@ select {
     transition: color 0.2s;
 }
 .nav-links button:hover, .nav-links a:hover { color: #7ed957; }
+
+/* Dashboard Style Cards */
+.result-card {
+    transition: transform 0.2s ease;
+}
+.result-card:hover {
+    transform: translateY(-5px);
+}
+
+.logout-link {
+    background: none;
+    border: none;
+    color: #ef4444;
+    font-weight: 600;
+    cursor: pointer;
+}
+.logout-link:hover {
+    text-decoration: underline;
+}
+
+/* Progress Bar Animation */
+@keyframes loadBar {
+    from { width: 0; }
+    to { width: 100%; }
+}
