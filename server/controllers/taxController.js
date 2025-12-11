@@ -90,7 +90,8 @@ const getGeminiTips = async (userData) => {
     if (!genAI) return null; 
 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        // UPDATED MODEL NAME HERE
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         
         // Calculate Assessment Year (Usually FY + 1)
         const fyParts = userData.financialYear.split('-');
@@ -132,7 +133,7 @@ Keep the entire response concise (under 500 words), evidence-based, and optimist
 
         const result = await model.generateContent(prompt);
         const response = await result.response;
-        return response.text(); // Returning raw Markdown text for the frontend to render
+        return response.text(); 
 
     } catch (error) {
         console.error("Gemini Error (Using Fallback):", error.message);
