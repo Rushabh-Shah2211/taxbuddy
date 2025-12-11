@@ -15,7 +15,7 @@ const Login = () => {
         try {
             const { data } = await axios.post('https://taxbuddy-o5wu.onrender.com/api/auth/login', { email, password });
             localStorage.setItem('userInfo', JSON.stringify(data));
-            navigate('/calculator');
+            navigate('/dashboard');
         } catch (error) {
             console.error(error);
             alert('Invalid Credentials. Please try again.');

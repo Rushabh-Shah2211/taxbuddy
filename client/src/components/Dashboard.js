@@ -35,17 +35,17 @@ const Dashboard = () => {
                 const latest = data[0];
                 setLatestCalc(latest);
                 
-                // Prepare Chart Data
-                const tax = latest.computedTax.netTaxPayable || 0;
-                // Simple logic: Income - Tax = Take Home (ignoring deductions for simple visual)
-                const income = latest.grossTotalIncome || 0;
-                const takeHome = Math.max(0, income - tax);
+                // SAFETY CHECK: Ensure numbers are numbers, not undefined/NaN
+                const tax = Number(latest.computedTax?.netTaxPayable) || 0;
+                const grossIncome = Number(latest.grossTotalIncome) || 0;
+                
+                // If gross income is 0 (e.g., incomplete record), avoid negative take-home
+                const takeHome = Math.max(0, grossIncome - tax);
 
                 setChartData({
                     labels: ['Tax Payable', 'Take Home Income'],
                     datasets: [{
                         data: [tax, takeHome],
-                        backgroundColor: ['#ffffff', 'rgba(255,255,255,0.3)'], // White theme for Green card? No, let's keep separate chart
                         backgroundColor: ['#ef4444', '#7ed957'],
                         borderWidth: 0,
                     }],
@@ -61,14 +61,12 @@ const Dashboard = () => {
         navigate('/');
     };
 
-    // Get time-based greeting
     const hour = new Date().getHours();
     const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
 
     return (
         <div className="dashboard-container">
-            
-            {/* 1. HEADER */}
+            {/* HEADER */}
             <header className="dashboard-header">
                 <div className="welcome-text">
                     <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'5px'}}>
@@ -83,15 +81,18 @@ const Dashboard = () => {
                 </div>
             </header>
 
-            {/* 2. HERO SECTION (Latest Snapshot) */}
+            {/* HERO SECTION (Fixed NaN issue) */}
             <div className="hero-card">
                 <div className="hero-stats">
                     <div className="hero-label">LATEST INCOME COMPUTATION</div>
                     <div className="hero-value">
-                        ₹{latestCalc ? (latestCalc.grossTotalIncome / 100000).toFixed(2) : '0'} Lakhs
+                        {/* FIX: Check if latestCalc exists AND has valid number */}
+                        ₹{latestCalc && latestCalc.grossTotalIncome 
+                            ? (Number(latestCalc.grossTotalIncome) / 100000).toFixed(2) 
+                            : '0.00'} Lakhs
                     </div>
                     <div className="hero-sub">
-                        Tax Liability: ₹{latestCalc ? latestCalc.computedTax.netTaxPayable.toLocaleString() : '0'}
+                        Tax Liability: ₹{latestCalc ? Number(latestCalc.computedTax?.netTaxPayable || 0).toLocaleString() : '0'}
                     </div>
                 </div>
                 <div className="hero-actions">
@@ -103,10 +104,7 @@ const Dashboard = () => {
             </div>
 
             <div className="dashboard-grid">
-                
-                {/* 3. LEFT COLUMN (Content) */}
                 <div className="main-content">
-                    
                     {/* Quick Actions */}
                     <div className="dash-card">
                         <h3>⚡ Quick Actions</h3>
@@ -119,18 +117,18 @@ const Dashboard = () => {
                                 <span className="tile-icon">👤</span>
                                 <span className="tile-text">Edit Profile</span>
                             </Link>
-                            <div className="action-tile" onClick={() => alert("Coming Soon!")}>
+                            <div className="action-tile" style={{opacity:0.6, cursor:'not-allowed'}}>
                                 <span className="tile-icon">📄</span>
-                                <span className="tile-text">Docs Vault</span>
+                                <span className="tile-text">Docs Vault (Soon)</span>
                             </div>
                         </div>
                     </div>
 
-                    {/* Recent History Table */}
+                    {/* Recent History */}
                     <div className="dash-card">
                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #eee', paddingBottom:'15px', marginBottom:'20px'}}>
                             <h3 style={{border:0, margin:0, padding:0}}>🕒 Recent Calculations</h3>
-                            <Link to="/calculator" style={{fontSize:'13px', color:'#7ed957', textDecoration:'none', fontWeight:'600'}}>View All</Link>
+                            <Link to="/dashboard" style={{fontSize:'13px', color:'#7ed957', textDecoration:'none', fontWeight:'600'}}>View All</Link>
                         </div>
                         
                         {history.length === 0 ? <p style={{color:'#999'}}>No calculations yet.</p> : (
@@ -149,7 +147,8 @@ const Dashboard = () => {
                                         <tr key={rec._id}>
                                             <td>{new Date(rec.createdAt).toLocaleDateString()}</td>
                                             <td>{rec.financialYear}</td>
-                                            <td>₹{(rec.grossTotalIncome/1000).toFixed(0)}k</td>
+                                            {/* FIX: Ensure Income is Number */}
+                                            <td>₹{((Number(rec.grossTotalIncome)||0)/1000).toFixed(0)}k</td>
                                             <td><span className="status-badge">Done</span></td>
                                             <td>
                                                 <Link to="/calculator" state={{ recordToEdit: rec }} style={{textDecoration:'none', fontSize:'18px'}}>✏️</Link>
@@ -162,34 +161,32 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* 4. RIGHT COLUMN (Sidebar Stats) */}
                 <div className="sidebar">
-                    
                     {/* Tax Breakdown Chart */}
-                    {chartData && (
-                        <div className="dash-card" style={{textAlign:'center'}}>
-                            <h3>📊 Financial Health</h3>
+                    <div className="dash-card" style={{textAlign:'center'}}>
+                        <h3>📊 Financial Health</h3>
+                        {chartData ? (
                             <div style={{height:'180px', display:'flex', justifyContent:'center'}}>
                                 <Doughnut data={chartData} options={{maintainAspectRatio:false, plugins:{legend:{display:false}}}} />
                             </div>
+                        ) : (
+                            <p style={{fontSize:'12px', color:'#999', padding:'20px'}}>Start a calculation to see analytics.</p>
+                        )}
+                        {chartData && (
                             <div style={{marginTop:'15px', fontSize:'12px', color:'#666'}}>
                                 <span style={{color:'#ef4444'}}>●</span> Tax &nbsp; 
                                 <span style={{color:'#7ed957'}}>●</span> Take Home
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
 
-                    {/* Tax Calendar Widget */}
+                    {/* Tax Calendar */}
                     <div className="dash-card calendar-widget">
                         <h3>📅 Tax Calendar</h3>
                         <div className="cal-date">15</div>
                         <div className="cal-month">DECEMBER</div>
-                        <div className="cal-event">
-                            ⚠️ Advance Tax Installment (75%)
-                        </div>
-                        <p style={{fontSize:'12px', color:'#999', marginTop:'10px'}}>Mark your calendar!</p>
+                        <div className="cal-event">⚠️ Advance Tax (75%)</div>
                     </div>
-
                 </div>
             </div>
         </div>
