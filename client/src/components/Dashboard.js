@@ -13,6 +13,7 @@ const Dashboard = () => {
     const [history, setHistory] = useState([]);
     const [latestCalc, setLatestCalc] = useState(null);
     const [chartData, setChartData] = useState(null);
+    const [grossIncomeDisplay, setGrossIncomeDisplay] = useState(0);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -35,15 +36,37 @@ const Dashboard = () => {
                 const latest = data[0];
                 setLatestCalc(latest);
                 
-                // SAFETY CHECK: Ensure numbers are numbers, not undefined/NaN
-                const tax = Number(latest.computedTax?.netTaxPayable) || 0;
-                const grossIncome = Number(latest.grossTotalIncome) || 0;
+                // --- FIX: CALCULATE GROSS INCOME FROM SAVED INPUTS ---
+                const s = latest.income?.salary;
+                const b = latest.income?.business;
+                const h = latest.income?.houseProperty;
+                const o = latest.income?.otherIncome;
+
+                const salary = (s?.basic||0) + (s?.hra||0) + (s?.specialAllowance||0) + (s?.bonus||0) + (s?.gratuity||0) + (s?.pension||0) + (s?.allowances||0);
                 
-                // If gross income is 0 (e.g., incomplete record), avoid negative take-home
-                const takeHome = Math.max(0, grossIncome - tax);
+                let business = 0;
+                if(b?.is44AD || b?.is44ADA) {
+                     business = (Number(b.turnover || 0) * (Number(b.presumptiveRate || 6)/100));
+                } else {
+                     business = Number(b?.profit || 0);
+                }
+
+                let hp = 0;
+                if(h?.type === 'Rented') hp = (h.rentReceived||0) - (h.municipalTaxes||0) - (h.interestPaid||0); // Simplified NAV
+                else hp = 0 - (h?.interestPaid || 0);
+
+                let other = 0;
+                if(o?.sources) o.sources.forEach(src => other += (Number(src.amount)||0));
+
+                const calculatedGross = salary + business + hp + other;
+                setGrossIncomeDisplay(calculatedGross);
+                // -----------------------------------------------------
+
+                const tax = Number(latest.computedTax?.netTaxPayable) || 0;
+                const takeHome = Math.max(0, calculatedGross - tax);
 
                 setChartData({
-                    labels: ['Tax Payable', 'Take Home Income'],
+                    labels: ['Tax Payable', 'Net Income'],
                     datasets: [{
                         data: [tax, takeHome],
                         backgroundColor: ['#ef4444', '#7ed957'],
@@ -81,15 +104,12 @@ const Dashboard = () => {
                 </div>
             </header>
 
-            {/* HERO SECTION (Fixed NaN issue) */}
+            {/* HERO SECTION */}
             <div className="hero-card">
                 <div className="hero-stats">
                     <div className="hero-label">LATEST INCOME COMPUTATION</div>
                     <div className="hero-value">
-                        {/* FIX: Check if latestCalc exists AND has valid number */}
-                        ₹{latestCalc && latestCalc.grossTotalIncome 
-                            ? (Number(latestCalc.grossTotalIncome) / 100000).toFixed(2) 
-                            : '0.00'} Lakhs
+                        ₹{(grossIncomeDisplay / 100000).toFixed(2)} Lakhs
                     </div>
                     <div className="hero-sub">
                         Tax Liability: ₹{latestCalc ? Number(latestCalc.computedTax?.netTaxPayable || 0).toLocaleString() : '0'}
@@ -111,24 +131,24 @@ const Dashboard = () => {
                         <div className="actions-grid">
                             <Link to="/calculator" className="action-tile">
                                 <span className="tile-icon">🧮</span>
-                                <span className="tile-text">New Tax Calc</span>
+                                <span className="tile-text">New Calc</span>
+                            </Link>
+                            <Link to="/history" className="action-tile"> {/* LINKED TO NEW HISTORY PAGE */}
+                                <span className="tile-icon">🕒</span>
+                                <span className="tile-text">History</span>
                             </Link>
                             <Link to="/profile" className="action-tile">
                                 <span className="tile-icon">👤</span>
-                                <span className="tile-text">Edit Profile</span>
+                                <span className="tile-text">Profile</span>
                             </Link>
-                            <div className="action-tile" style={{opacity:0.6, cursor:'not-allowed'}}>
-                                <span className="tile-icon">📄</span>
-                                <span className="tile-text">Docs Vault (Soon)</span>
-                            </div>
                         </div>
                     </div>
 
-                    {/* Recent History */}
+                    {/* Recent Calculations Preview */}
                     <div className="dash-card">
                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #eee', paddingBottom:'15px', marginBottom:'20px'}}>
-                            <h3 style={{border:0, margin:0, padding:0}}>🕒 Recent Calculations</h3>
-                            <Link to="/dashboard" style={{fontSize:'13px', color:'#7ed957', textDecoration:'none', fontWeight:'600'}}>View All</Link>
+                            <h3 style={{border:0, margin:0, padding:0}}>Recent Activity</h3>
+                            <Link to="/history" style={{fontSize:'13px', color:'#7ed957', textDecoration:'none', fontWeight:'600'}}>View All</Link>
                         </div>
                         
                         {history.length === 0 ? <p style={{color:'#999'}}>No calculations yet.</p> : (
@@ -137,8 +157,7 @@ const Dashboard = () => {
                                     <tr>
                                         <th>Date</th>
                                         <th>FY</th>
-                                        <th>Income</th>
-                                        <th>Status</th>
+                                        <th>Tax</th>
                                         <th></th>
                                     </tr>
                                 </thead>
@@ -147,9 +166,7 @@ const Dashboard = () => {
                                         <tr key={rec._id}>
                                             <td>{new Date(rec.createdAt).toLocaleDateString()}</td>
                                             <td>{rec.financialYear}</td>
-                                            {/* FIX: Ensure Income is Number */}
-                                            <td>₹{((Number(rec.grossTotalIncome)||0)/1000).toFixed(0)}k</td>
-                                            <td><span className="status-badge">Done</span></td>
+                                            <td style={{fontWeight:'bold', color:'#ef4444'}}>₹{rec.computedTax?.netTaxPayable?.toLocaleString() || 0}</td>
                                             <td>
                                                 <Link to="/calculator" state={{ recordToEdit: rec }} style={{textDecoration:'none', fontSize:'18px'}}>✏️</Link>
                                             </td>
@@ -162,9 +179,9 @@ const Dashboard = () => {
                 </div>
 
                 <div className="sidebar">
-                    {/* Tax Breakdown Chart */}
+                    {/* Financial Health Chart */}
                     <div className="dash-card" style={{textAlign:'center'}}>
-                        <h3>📊 Financial Health</h3>
+                        <h3>📊 Analysis</h3>
                         {chartData ? (
                             <div style={{height:'180px', display:'flex', justifyContent:'center'}}>
                                 <Doughnut data={chartData} options={{maintainAspectRatio:false, plugins:{legend:{display:false}}}} />
@@ -178,14 +195,6 @@ const Dashboard = () => {
                                 <span style={{color:'#7ed957'}}>●</span> Take Home
                             </div>
                         )}
-                    </div>
-
-                    {/* Tax Calendar */}
-                    <div className="dash-card calendar-widget">
-                        <h3>📅 Tax Calendar</h3>
-                        <div className="cal-date">15</div>
-                        <div className="cal-month">DECEMBER</div>
-                        <div className="cal-event">⚠️ Advance Tax (75%)</div>
                     </div>
                 </div>
             </div>

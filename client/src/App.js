@@ -10,6 +10,7 @@ import Dashboard from './components/Dashboard';
 import Profile from './components/Profile';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
+import History from './components/History';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password/:resetToken" element={<ResetPassword />} />
+          <Route path="/history" element={<History />} />
           
           {/* --- Main App Routes --- */}
           <Route path="/calculator" element={<TaxCalculator />} />
