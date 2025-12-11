@@ -1,5 +1,6 @@
 // client/src/components/ForgotPassword.js
 import React, { useState } from 'react';
+import axios from 'axios';
 import { Link } from 'react-router-dom';
 import logo from '../assets/rb_logo.png';
 import './Auth.css';
@@ -7,11 +8,21 @@ import './Auth.css';
 const ForgotPassword = () => {
     const [email, setEmail] = useState('');
     const [submitted, setSubmitted] = useState(false);
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // Simulation: In a real app, axios.post('/api/auth/forgot-password') would go here
-        setSubmitted(true);
+        setLoading(true);
+        setError('');
+        try {
+            await axios.post('https://taxbuddy-o5wu.onrender.com/api/auth/forgot-password', { email });
+            setSubmitted(true);
+        } catch (err) {
+            setError('Email not found or server error.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -20,14 +31,12 @@ const ForgotPassword = () => {
                 <div className="logo-section">
                     <img src={logo} alt="Logo" className="auth-logo" style={{width: '60px'}} />
                     <h2>Reset Password</h2>
-                    {!submitted ? 
-                        <p>Enter your email to receive instructions</p> : 
-                        <p>Check your inbox!</p>
-                    }
+                    {!submitted ? <p>Enter your email to receive instructions</p> : null}
                 </div>
 
                 {!submitted ? (
                     <form onSubmit={handleSubmit}>
+                        {error && <div style={{color:'red', marginBottom:'10px', fontSize:'13px'}}>{error}</div>}
                         <div className="input-group-auth">
                             <label>Email Address</label>
                             <input 
@@ -35,16 +44,17 @@ const ForgotPassword = () => {
                                 value={email} 
                                 onChange={(e) => setEmail(e.target.value)} 
                                 required 
-                                placeholder="name@example.com"
                             />
                         </div>
-                        <button type="submit" className="auth-btn">Send Reset Link</button>
+                        <button type="submit" className="auth-btn" disabled={loading}>
+                            {loading ? 'Sending...' : 'Send Reset Link'}
+                        </button>
                     </form>
                 ) : (
                     <div style={{textAlign: 'center', padding: '10px'}}>
                         <div style={{fontSize: '40px', marginBottom: '10px'}}>✅</div>
-                        <h3 style={{color: 'green', margin: '10px 0'}}>Link Sent</h3>
-                        <p style={{fontSize: '14px', color: '#555'}}>We have sent a password reset link to <br/><strong>{email}</strong></p>
+                        <h3 style={{color: '#4da037', margin: '10px 0'}}>Link Sent</h3>
+                        <p style={{fontSize: '14px', color: '#555'}}>Check your email: <strong>{email}</strong></p>
                     </div>
                 )}
 
