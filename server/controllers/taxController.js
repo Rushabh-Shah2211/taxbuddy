@@ -16,18 +16,28 @@ const calculateTaxAmount = (taxableIncome, regime, ageGroup) => {
         else if (taxableIncome > basicExemption) tax += (taxableIncome - basicExemption) * 0.05;
         
         if (taxableIncome <= 500000) tax = 0; // Rebate 87A
-    } else {
-        // New Regime FY 24-25 (Same for all ages)
-        if (taxableIncome > 1500000) tax += (taxableIncome - 1500000) * 0.30 + 150000;
-        else if (taxableIncome > 1200000) tax += (taxableIncome - 1200000) * 0.20 + 90000;
-        else if (taxableIncome > 1000000) tax += (taxableIncome - 1000000) * 0.15 + 60000;
-        else if (taxableIncome > 700000) tax += (taxableIncome - 700000) * 0.10 + 30000;
-        else if (taxableIncome > 300000) tax += (taxableIncome - 300000) * 0.05;
+        } else {
+        // New Regime Logic
+        // Assuming 2025-26 keeps the same slabs as 2024-25 for now
+        if (financialYear === '2024-2025' || financialYear === '2025-2026') {
+             // Budget 2024/2025 Slabs
+             if (taxableIncome > 1500000) tax += (taxableIncome - 1500000) * 0.30 + 150000;
+             else if (taxableIncome > 1200000) tax += (taxableIncome - 1200000) * 0.20 + 90000;
+             else if (taxableIncome > 1000000) tax += (taxableIncome - 1000000) * 0.15 + 60000;
+             else if (taxableIncome > 700000) tax += (taxableIncome - 700000) * 0.10 + 30000;
+             else if (taxableIncome > 300000) tax += (taxableIncome - 300000) * 0.05;
+        } else {
+             // Older years (2023-24) logic...
+             if (taxableIncome > 1500000) tax += (taxableIncome - 1500000) * 0.30 + 150000;
+             else if (taxableIncome > 1200000) tax += (taxableIncome - 1200000) * 0.20 + 90000;
+             else if (taxableIncome > 900000) tax += (taxableIncome - 900000) * 0.15 + 45000;
+             else if (taxableIncome > 600000) tax += (taxableIncome - 600000) * 0.10 + 15000;
+             else if (taxableIncome > 300000) tax += (taxableIncome - 300000) * 0.05;
+        }
         
-        if (taxableIncome <= 700000) tax = 0; // Rebate
+        // 87A Rebate New Regime (Income <= 7L)
+        if (taxableIncome <= 700000) tax = 0;
     }
-    return tax > 0 ? tax * 1.04 : 0; // Cess
-};
 
 const calculateTax = async (req, res) => {
     try {
@@ -45,7 +55,7 @@ const calculateTax = async (req, res) => {
                            (Number(income.salary.prevSalary)||0) + 
                            (Number(income.salary.allowances)||0);
             // Std Deduction
-            const stdDed = financialYear === '2024-2025' ? 75000 : 50000;
+            let stdDed = (financialYear === '2024-2025' || financialYear === '2025-2026') ? 75000 : 50000;
             salaryIncome = Math.max(0, salaryIncome - stdDed); 
         }
 
