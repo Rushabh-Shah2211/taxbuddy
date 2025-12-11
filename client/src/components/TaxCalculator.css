@@ -188,3 +188,102 @@ body {
     font-weight: 600;
     cursor: pointer;
 }
+
+/* Add to existing CSS */
+
+.step-indicator {
+    background: #e0f2f1;
+    color: #00695c;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.wizard-content {
+    min-height: 400px; /* Prevent jumping */
+}
+
+.wizard-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.toggle-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #eee;
+}
+
+.btn-group {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-group button {
+    padding: 8px 20px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.btn-group button.active {
+    background: #7ed957;
+    color: white;
+    border-color: #7ed957;
+    font-weight: bold;
+}
+
+.checkbox-group {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 15px;
+}
+
+.live-calc {
+    background: #e8f5e9;
+    color: #2e7d32;
+    padding: 10px;
+    border-radius: 5px;
+    font-weight: bold;
+    text-align: center;
+    margin-top: 10px;
+}
+
+.btn-danger-small {
+    background: #ffcdd2;
+    color: #c62828;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+}
+
+.final-payable {
+    background: #333;
+    color: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    margin-top: 20px;
+}
+
+.btn-success {
+    background: #28a745;
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+}

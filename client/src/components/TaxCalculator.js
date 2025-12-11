@@ -1,90 +1,95 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import logo from '../assets/rb_logo.png'; 
+import logo from '../assets/rb_logo.png';
 import './TaxCalculator.css';
 
 const TaxCalculator = () => {
     const [user, setUser] = useState(null);
     const navigate = useNavigate();
-    const location = useLocation();
 
-    const [userCategory, setUserCategory] = useState('Salaried');
-    const [financialYear, setFinancialYear] = useState('2024-2025');
-    
-    // EXPANDED FORM DATA
-    const [formData, setFormData] = useState({
-        // Salary
-        basic: '', hra: '', specialAllowance: '', bonus: '',
-        // Business
-        grossReceipts: '', businessProfit: '',
-        // House Property
-        houseProperty: '', // Can be negative for Loss
-        // Capital Gains
-        stcg: '', ltcg: '',
-        // Other Sources
-        interestIncome: '', otherIncome: '',
-        // Deductions
-        section80C: '', section80D: ''
-    });
+    // WIZARD STATE
+    const [step, setStep] = useState(1);
     const [result, setResult] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    // FORM DATA
+    const [formData, setFormData] = useState({
+        // Page 1
+        financialYear: '2024-2025',
+        ageGroup: '<60',
+        residentialStatus: 'Resident',
+        // Page 2: Salary
+        salaryEnabled: false,
+        basic: '', hra: '', gratuity: '', pension: '', prevSalary: '', allowances: '',
+        // Page 3: Business
+        businessEnabled: false,
+        turnover: '', profit: '', is44AD: false, is44ADA: false, presumptiveRate: '6',
+        // Page 4: House Property
+        hpEnabled: false,
+        hpType: 'Self Occupied', rentReceived: '', municipalTaxes: '', interestPaid: '',
+        // Page 5: Other Income (Array)
+        otherEnabled: false,
+        otherSources: [{ name: '', amount: '', expenses: '' }],
+        // Page 8: Taxes
+        tds: '', advanceTax: '', selfAssessment: ''
+    });
 
     useEffect(() => {
         const userInfo = localStorage.getItem('userInfo');
         if (userInfo) setUser(JSON.parse(userInfo));
+    }, []);
 
-        if (location.state && location.state.recordToEdit) {
-            const r = location.state.recordToEdit;
-            setUserCategory(r.userCategory);
-            setFinancialYear(r.financialYear);
-            setFormData({
-                basic: r.income.salary?.basic || '',
-                hra: r.income.salary?.hra || '',
-                specialAllowance: r.income.salary?.specialAllowance || '',
-                bonus: r.income.salary?.bonus || '',
-                businessProfit: r.income.otherSources?.businessProfit || '',
-                grossReceipts: r.income.otherSources?.grossReceipts || '',
-                
-                // New Fields
-                houseProperty: r.income.houseProperty || '',
-                stcg: r.income.capitalGains?.stcg || '',
-                ltcg: r.income.capitalGains?.ltcg || '',
-                interestIncome: r.income.otherSources?.interestIncome || '',
-                otherIncome: r.income.otherSources?.otherIncome || '',
-
-                section80C: r.deductions?.section80C || '',
-                section80D: r.deductions?.section80D || ''
-            });
-        }
-    }, [location]);
-
+    // Helper to handle simple inputs
     const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+    
+    // Helper to handle Other Income dynamic rows
+    const handleOtherIncomeChange = (index, e) => {
+        const newSources = [...formData.otherSources];
+        newSources[index][e.target.name] = e.target.value;
+        setFormData({ ...formData, otherSources: newSources });
+    };
+    const addOtherIncomeRow = () => setFormData({ ...formData, otherSources: [...formData.otherSources, { name: '', amount: '', expenses: '' }] });
+    const removeOtherIncomeRow = (index) => {
+        const newSources = formData.otherSources.filter((_, i) => i !== index);
+        setFormData({ ...formData, otherSources: newSources });
+    };
 
-    const calculateTax = async (e) => {
-        e.preventDefault();
+    // SUBMIT FUNCTION
+    const calculateTax = async () => {
+        setLoading(true);
         const payload = {
             userId: user ? user._id : null,
-            userCategory, financialYear,
+            financialYear: formData.financialYear,
+            ageGroup: formData.ageGroup,
+            residentialStatus: formData.residentialStatus,
             income: {
-                salary: userCategory === 'Salaried' ? {
-                    basic: Number(formData.basic), hra: Number(formData.hra), specialAllowance: Number(formData.specialAllowance), bonus: Number(formData.bonus)
-                } : {},
-                otherSources: { 
-                    businessProfit: Number(formData.businessProfit), 
-                    grossReceipts: Number(formData.grossReceipts),
-                    interestIncome: Number(formData.interestIncome),
-                    otherIncome: Number(formData.otherIncome)
+                salary: { 
+                    enabled: formData.salaryEnabled,
+                    basic: formData.basic, hra: formData.hra, gratuity: formData.gratuity, 
+                    pension: formData.pension, prevSalary: formData.prevSalary, allowances: formData.allowances 
                 },
-                houseProperty: Number(formData.houseProperty), // Can be negative
-                capitalGains: {
-                    stcg: Number(formData.stcg),
-                    ltcg: Number(formData.ltcg)
+                business: {
+                    enabled: formData.businessEnabled,
+                    turnover: formData.turnover, profit: formData.profit,
+                    is44AD: formData.is44AD, is44ADA: formData.is44ADA, presumptiveRate: formData.presumptiveRate
+                },
+                houseProperty: {
+                    enabled: formData.hpEnabled,
+                    type: formData.hpType, rentReceived: formData.rentReceived,
+                    municipalTaxes: formData.municipalTaxes, interestPaid: formData.interestPaid
+                },
+                otherIncome: {
+                    enabled: formData.otherEnabled,
+                    sources: formData.otherSources
                 }
             },
-            deductions: {
-                section80C: Number(formData.section80C), section80D: Number(formData.section80D)
+            taxesPaid: {
+                tds: formData.tds,
+                advanceTax: formData.advanceTax,
+                selfAssessment: formData.selfAssessment
             }
         };
 
@@ -92,131 +97,257 @@ const TaxCalculator = () => {
             const config = { headers: { 'Content-Type': 'application/json', Authorization: user ? `Bearer ${user.token}` : '' }};
             const response = await axios.post('https://taxbuddy-o5wu.onrender.com/api/tax/calculate', payload, config);
             setResult(response.data);
+            setStep(9); // Move to Result Page
         } catch (error) { alert("Calculation Failed"); }
+        setLoading(false);
     };
 
-    const downloadPDF = () => {
-        const doc = new jsPDF();
-        doc.setFontSize(22); doc.setTextColor(0, 51, 102); doc.text("Artha by RB", 14, 20);
-        
-        let bodyData = [
-            ['House Property', formData.houseProperty || 0],
-            ['Capital Gains', (Number(formData.stcg)||0) + (Number(formData.ltcg)||0)],
-            ['Other Sources', (Number(formData.interestIncome)||0) + (Number(formData.otherIncome)||0)]
-        ];
-        if(userCategory === 'Salaried') bodyData.unshift(['Salary Income', formData.basic || 0]);
-        else bodyData.unshift(['Business Income', formData.businessProfit || 0]);
-
-        autoTable(doc, { startY: 40, head: [['Head', 'Amount']], body: bodyData });
-        // ... (Keep existing PDF tax table logic) ...
-        doc.save("Artha_Report.pdf");
-    };
-
-    const logout = () => { localStorage.removeItem('userInfo'); navigate('/'); };
+    // --- RENDER HELPERS ---
+    const nextStep = () => setStep(step + 1);
+    const prevStep = () => setStep(step - 1);
+    
+    // Live Business Profit Calc
+    const liveProfit = (formData.is44AD || formData.is44ADA) 
+        ? (Number(formData.turnover) * (Number(formData.presumptiveRate)/100)).toFixed(0) 
+        : formData.profit;
 
     return (
         <div className="calculator-container">
-            {/* HEADER */}
+            {/* Header */}
             <div className="header-actions">
-                <div>
-                    <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                        <img src={logo} alt="Logo" style={{height:'40px'}} />
-                        <h2 style={{margin:0}}>Artha by RB</h2>
-                    </div>
+                <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                    <img src={logo} alt="Logo" style={{height:'35px'}} />
+                    <h2 style={{margin:0}}>Artha by RB</h2>
                 </div>
-                <div style={{display:'flex', gap:'10px'}}>
-                     {user && <><Link to="/dashboard" className="btn-secondary">History</Link><button onClick={logout} className="btn-danger">Logout</button></>}
-                </div>
+                {step < 9 && <div className="step-indicator">Step {step} of 8</div>}
             </div>
 
-            <div style={{display:'flex', gap:'20px', marginBottom:'20px'}}>
-                <div className="user-type-toggle" style={{flex:1, marginBottom:0}}>
-                    <button type="button" className={`toggle-btn ${userCategory === 'Salaried' ? 'active' : ''}`} onClick={() => setUserCategory('Salaried')}>Salaried</button>
-                    <button type="button" className={`toggle-btn ${userCategory === 'Business' ? 'active' : ''}`} onClick={() => setUserCategory('Business')}>Business</button>
-                </div>
-                <div style={{flex:1}}>
-                    <select value={financialYear} onChange={(e) => setFinancialYear(e.target.value)} style={{width:'100%', padding:'12px', borderRadius:'10px', border:'1px solid #ccc', background:'#f1f3f6'}}>
-                        <option value="2024-2025">FY 2024-25</option>
-                        <option value="2023-2024">FY 2023-24</option>
-                    </select>
-                </div>
-            </div>
-            
-            <form onSubmit={calculateTax}>
-                {/* 1. PRIMARY INCOME */}
-                {userCategory === 'Salaried' ? (
-                     <div className="section-card"><div className="section-title">Salary Info</div>
+            {/* --- WIZARD PAGES --- */}
+            <div className="wizard-content">
+                
+                {/* PAGE 1: BASIC INFO */}
+                {step === 1 && (
+                    <div className="fade-in">
+                        <h3>📋 Basic Information</h3>
                         <div className="form-grid">
-                            <input placeholder="Basic Salary" name="basic" value={formData.basic} onChange={handleChange} />
-                            <input placeholder="HRA" name="hra" value={formData.hra} onChange={handleChange} />
-                            <input placeholder="Special Allowance" name="specialAllowance" value={formData.specialAllowance} onChange={handleChange} />
-                            <input placeholder="Bonus" name="bonus" value={formData.bonus} onChange={handleChange} />
-                        </div>
-                     </div>
-                ) : (
-                    <div className="section-card"><div className="section-title">Business Info</div>
-                        <div className="form-grid">
-                             <input placeholder="Gross Receipts" name="grossReceipts" value={formData.grossReceipts} onChange={handleChange} />
-                             <input placeholder="Net Profit" name="businessProfit" value={formData.businessProfit} onChange={handleChange} />
+                            <div className="input-group"><label>Name</label><input value={user?.name || ''} disabled style={{background:'#f0f0f0'}}/></div>
+                            <div className="input-group"><label>Financial Year</label>
+                                <select name="financialYear" value={formData.financialYear} onChange={handleChange}>
+                                    <option value="2024-2025">FY 2024-25</option>
+                                    <option value="2023-2024">FY 2023-24</option>
+                                </select>
+                            </div>
+                            <div className="input-group"><label>Age Group</label>
+                                <select name="ageGroup" value={formData.ageGroup} onChange={handleChange}>
+                                    <option value="<60">Below 60</option>
+                                    <option value="60-80">60 - 80 (Senior)</option>
+                                    <option value=">80">Above 80 (Super Senior)</option>
+                                </select>
+                            </div>
+                            <div className="input-group"><label>Residential Status</label>
+                                <select name="residentialStatus" value={formData.residentialStatus} onChange={handleChange}>
+                                    <option value="Resident">Resident</option>
+                                    <option value="NRI">Non-Resident (NRI)</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 )}
 
-                {/* 2. NEW INCOME HEADS */}
-                <div className="section-card"><div className="section-title">Other Income Sources</div>
-                    <div className="form-grid">
-                        <input type="number" placeholder="House Property (Rent or -Loss)" name="houseProperty" value={formData.houseProperty} onChange={handleChange} />
-                        <input type="number" placeholder="Interest Income (Savings/FD)" name="interestIncome" value={formData.interestIncome} onChange={handleChange} />
-                        <input type="number" placeholder="Short Term Cap Gains (STCG)" name="stcg" value={formData.stcg} onChange={handleChange} />
-                        <input type="number" placeholder="Long Term Cap Gains (LTCG)" name="ltcg" value={formData.ltcg} onChange={handleChange} />
-                        {userCategory === 'Salaried' && <input type="number" placeholder="Side Business Profit" name="businessProfit" value={formData.businessProfit} onChange={handleChange} />}
-                    </div>
-                </div>
-                
-                {/* 3. DEDUCTIONS */}
-                <div className="section-card"><div className="section-title">Deductions</div>
-                    <div className="form-grid">
-                        <input placeholder="80C (Max 1.5L)" name="section80C" value={formData.section80C} onChange={handleChange} />
-                        <input placeholder="80D (Health Ins)" name="section80D" value={formData.section80D} onChange={handleChange} />
-                    </div>
-                </div>
-
-                <button type="submit" className="btn-primary">Calculate Tax</button>
-            </form>
-
-            {/* RESULTS & AI TIPS */}
-            {result && (
-                <div style={{marginTop: '40px'}}>
-                    <div className="result-container">
-                        <div className={`result-card ${result.recommendation === "Old Regime" ? "winner" : ""}`}>
-                            <h3>Old Regime</h3>
-                            <h2>₹{Math.round(result.oldRegime.tax).toLocaleString()}</h2>
+                {/* PAGE 2: SALARY */}
+                {step === 2 && (
+                    <div className="fade-in">
+                        <h3>💼 Salary Income</h3>
+                        <div className="toggle-wrapper">
+                            <label>Do you have Salary Income?</label>
+                            <div className="btn-group">
+                                <button className={formData.salaryEnabled ? 'active' : ''} onClick={()=>setFormData({...formData, salaryEnabled:true})}>Yes</button>
+                                <button className={!formData.salaryEnabled ? 'active' : ''} onClick={()=>setFormData({...formData, salaryEnabled:false})}>No</button>
+                            </div>
                         </div>
-                        <div className={`result-card ${result.recommendation === "New Regime" ? "winner" : ""}`}>
-                            <h3>New Regime</h3>
-                            <h2>₹{Math.round(result.newRegime.tax).toLocaleString()}</h2>
+                        {formData.salaryEnabled && (
+                            <div className="form-grid">
+                                <input placeholder="Basic Salary" name="basic" value={formData.basic} onChange={handleChange} />
+                                <input placeholder="HRA" name="hra" value={formData.hra} onChange={handleChange} />
+                                <input placeholder="Gratuity" name="gratuity" value={formData.gratuity} onChange={handleChange} />
+                                <input placeholder="Pension" name="pension" value={formData.pension} onChange={handleChange} />
+                                <input placeholder="Prev. Employer Salary" name="prevSalary" value={formData.prevSalary} onChange={handleChange} />
+                                <input placeholder="Allowances" name="allowances" value={formData.allowances} onChange={handleChange} />
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* PAGE 3: BUSINESS */}
+                {step === 3 && (
+                    <div className="fade-in">
+                        <h3>🏢 Business / Profession</h3>
+                        <div className="toggle-wrapper">
+                            <label>Do you have Business Income?</label>
+                            <div className="btn-group">
+                                <button className={formData.businessEnabled ? 'active' : ''} onClick={()=>setFormData({...formData, businessEnabled:true})}>Yes</button>
+                                <button className={!formData.businessEnabled ? 'active' : ''} onClick={()=>setFormData({...formData, businessEnabled:false})}>No</button>
+                            </div>
                         </div>
+                        {formData.businessEnabled && (
+                            <div className="form-grid">
+                                <input placeholder="Total Turnover / Receipts" name="turnover" value={formData.turnover} onChange={handleChange} />
+                                <div className="checkbox-group">
+                                    <label><input type="checkbox" checked={formData.is44AD} onChange={(e)=>setFormData({...formData, is44AD:e.target.checked, is44ADA:false})}/> 44AD (Business)</label>
+                                    <label><input type="checkbox" checked={formData.is44ADA} onChange={(e)=>setFormData({...formData, is44ADA:e.target.checked, is44AD:false})}/> 44ADA (Profession)</label>
+                                </div>
+                                {(formData.is44AD || formData.is44ADA) ? (
+                                    <>
+                                        <div className="input-group">
+                                            <label>Presumptive Rate (%)</label>
+                                            <input name="presumptiveRate" value={formData.presumptiveRate} onChange={handleChange} />
+                                        </div>
+                                        <div className="live-calc">Estimated Profit: ₹{Number(liveProfit).toLocaleString()}</div>
+                                    </>
+                                ) : (
+                                    <input placeholder="Actual Net Profit" name="profit" value={formData.profit} onChange={handleChange} />
+                                )}
+                            </div>
+                        )}
                     </div>
+                )}
 
-                    <div className="recommendation-banner" style={{marginTop:'20px', padding:'15px', background:'#e0f7fa', color:'#006064', borderRadius:'8px', textAlign:'center'}}>
-                        Recommendation: <strong>{result.recommendation}</strong>
+                {/* PAGE 4: HOUSE PROPERTY */}
+                {step === 4 && (
+                    <div className="fade-in">
+                        <h3>🏠 House Property</h3>
+                        <div className="toggle-wrapper">
+                            <label>Do you own House Property?</label>
+                            <div className="btn-group">
+                                <button className={formData.hpEnabled ? 'active' : ''} onClick={()=>setFormData({...formData, hpEnabled:true})}>Yes</button>
+                                <button className={!formData.hpEnabled ? 'active' : ''} onClick={()=>setFormData({...formData, hpEnabled:false})}>No</button>
+                            </div>
+                        </div>
+                        {formData.hpEnabled && (
+                            <>
+                                <select name="hpType" value={formData.hpType} onChange={handleChange} style={{marginBottom:'15px', padding:'10px', width:'100%'}}>
+                                    <option value="Self Occupied">Self Occupied</option>
+                                    <option value="Rented">Rented</option>
+                                </select>
+                                <div className="form-grid">
+                                    {formData.hpType === 'Rented' && (
+                                        <>
+                                            <input placeholder="Rent Received" name="rentReceived" value={formData.rentReceived} onChange={handleChange} />
+                                            <input placeholder="Municipal Taxes Paid" name="municipalTaxes" value={formData.municipalTaxes} onChange={handleChange} />
+                                        </>
+                                    )}
+                                    <input placeholder="Interest Paid on Loan" name="interestPaid" value={formData.interestPaid} onChange={handleChange} />
+                                </div>
+                            </>
+                        )}
                     </div>
+                )}
 
-                    {/* NEW AI TIPS SECTION */}
-                    {result.suggestions && result.suggestions.length > 0 && (
-                        <div className="tips-box">
-                            <h4 style={{marginTop:0, color:'#856404'}}>🤖 Artha AI Recommendations</h4>
-                            <ul style={{margin:0, paddingLeft:'20px', color:'#856404'}}>
-                                {result.suggestions.map((tip, i) => (
-                                    <li key={i} style={{marginBottom:'8px'}} dangerouslySetInnerHTML={{__html: tip}}></li>
+                {/* PAGE 5: OTHER INCOME */}
+                {step === 5 && (
+                    <div className="fade-in">
+                        <h3>💰 Other Income</h3>
+                        <div className="toggle-wrapper">
+                            <label>Any other income (Interest, Dividend)?</label>
+                            <div className="btn-group">
+                                <button className={formData.otherEnabled ? 'active' : ''} onClick={()=>setFormData({...formData, otherEnabled:true})}>Yes</button>
+                                <button className={!formData.otherEnabled ? 'active' : ''} onClick={()=>setFormData({...formData, otherEnabled:false})}>No</button>
+                            </div>
+                        </div>
+                        {formData.otherEnabled && (
+                            <div>
+                                {formData.otherSources.map((source, index) => (
+                                    <div key={index} className="form-grid" style={{borderBottom:'1px solid #eee', paddingBottom:'10px', marginBottom:'10px'}}>
+                                        <input placeholder="Income Name (e.g. FD Interest)" name="name" value={source.name} onChange={(e)=>handleOtherIncomeChange(index, e)} />
+                                        <input placeholder="Amount" name="amount" value={source.amount} onChange={(e)=>handleOtherIncomeChange(index, e)} />
+                                        <input placeholder="Expenses Claimed" name="expenses" value={source.expenses} onChange={(e)=>handleOtherIncomeChange(index, e)} />
+                                        {index > 0 && <button className="btn-danger-small" onClick={()=>removeOtherIncomeRow(index)}>X</button>}
+                                    </div>
                                 ))}
-                            </ul>
-                        </div>
-                    )}
+                                <button className="btn-secondary" onClick={addOtherIncomeRow}>+ Add Another Line</button>
+                            </div>
+                        )}
+                    </div>
+                )}
 
-                    <button onClick={downloadPDF} style={{marginTop: '20px', padding: '15px', background: '#28a745', width: '100%', border: 'none', borderRadius: '8px', color:'white', fontWeight:'bold', cursor:'pointer'}}>Download Report</button>
-                </div>
-            )}
+                {/* PAGE 6 & 7: COMING SOON */}
+                {(step === 6 || step === 7) && (
+                    <div className="fade-in" style={{textAlign:'center', padding:'40px'}}>
+                        <h2>🚧 Coming Soon</h2>
+                        <p>{step === 6 ? "Capital Gains" : "Deductions"} module is under development.</p>
+                        <p>We will work on it later in detail.</p>
+                    </div>
+                )}
+
+                {/* PAGE 8: TAXES PAID */}
+                {step === 8 && (
+                    <div className="fade-in">
+                        <h3>💸 Taxes Paid</h3>
+                        <div className="form-grid">
+                            <div className="input-group"><label>TDS Deducted</label><input name="tds" value={formData.tds} onChange={handleChange} /></div>
+                            <div className="input-group"><label>Advance Tax Paid</label><input name="advanceTax" value={formData.advanceTax} onChange={handleChange} /></div>
+                            <div className="input-group"><label>Self Assessment Tax</label><input name="selfAssessment" value={formData.selfAssessment} onChange={handleChange} /></div>
+                        </div>
+                    </div>
+                )}
+
+                {/* PAGE 9: RESULT */}
+                {step === 9 && result && (
+                    <div className="fade-in">
+                        <h3>🎉 Calculation Result</h3>
+                        <div className="result-container">
+                            <div className={`result-card ${result.recommendation === "Old Regime" ? "winner" : ""}`}>
+                                <h3>Old Regime Tax</h3>
+                                <h2>₹{Math.round(result.oldRegimeTax).toLocaleString()}</h2>
+                            </div>
+                            <div className={`result-card ${result.recommendation === "New Regime" ? "winner" : ""}`}>
+                                <h3>New Regime Tax</h3>
+                                <h2>₹{Math.round(result.newRegimeTax).toLocaleString()}</h2>
+                            </div>
+                        </div>
+
+                        <div className="final-payable">
+                            <h3>Net Tax Payable: ₹{Math.round(result.netPayable).toLocaleString()}</h3>
+                            <small>(After adjusting TDS & Advance Tax)</small>
+                        </div>
+                        
+                        {result.advanceTaxSchedule && result.advanceTaxSchedule.length > 0 && (
+                            <div className="advance-tax-box">
+                                <h4>📅 Advance Tax Plan</h4>
+                                <table style={{width:'100%'}}>
+                                    <tbody>
+                                        {result.advanceTaxSchedule.map((row, i) => (
+                                            <tr key={i}>
+                                                <td>{row.dueDate}</td>
+                                                <td>{row.percentage}</td>
+                                                <td>₹{row.amountDue.toLocaleString()}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        
+                        {/* AI Tips - Placeholder logic for now */}
+                        <div className="tips-box">
+                            <h4>🤖 AI Tips</h4>
+                            <ul><li>Consider New Regime for lower rates if deductions are low.</li></ul>
+                        </div>
+                    </div>
+                )}
+
+            </div>
+
+            {/* --- NAVIGATION FOOTER --- */}
+            <div className="wizard-footer">
+                {step > 1 && step < 9 && <button className="btn-secondary" onClick={prevStep}>Back</button>}
+                
+                {step < 8 && <button className="btn-primary" onClick={nextStep}>Next</button>}
+                
+                {step === 8 && <button className="btn-success" onClick={calculateTax}>{loading ? 'Calculating...' : 'Submit & Calculate'}</button>}
+                
+                {step === 9 && <button className="btn-primary" onClick={()=>setStep(1)}>Start Over</button>}
+            </div>
         </div>
     );
 };
