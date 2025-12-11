@@ -1,7 +1,7 @@
 const TaxRecord = require('../models/TaxRecord');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-// Initialize Gemini (using the stable 2.0-flash model we found)
+// Initialize Gemini (using the stable 2.0-flash model)
 const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
 // ==========================================
@@ -23,7 +23,6 @@ const calculateGratuity = (details, isGovt) => {
         exemptAmount = Math.min(formulaAmount, limit, received);
     } else {
         // Half month avg salary * Years
-        // Note: strictly this uses 10 months avg, approximating here with lastDrawn for simplicity unless avg provided
         const formulaAmount = 0.5 * lastDrawnSalary * yearsOfService;
         exemptAmount = Math.min(formulaAmount, limit, received);
     }
@@ -37,10 +36,9 @@ const calculateLeaveEncashment = (details, isGovt) => {
     if (isGovt) return { taxable: 0, exempt: details.received }; // Fully exempt for Govt
 
     const { received, avgSalary10Months, earnedLeaveBalance, yearsOfService } = details;
-    const limit = 2500000; // Updated limit ₹25 Lakhs (Budget 2023)
+    const limit = 2500000; // ₹25 Lakh limit (Budget 2023)
     
-    // Formula: Cash equivalent of leave salary
-    const cashEquivalent = avgSalary10Months * earnedLeaveBalance; // assuming balance is in months
+    const cashEquivalent = avgSalary10Months * earnedLeaveBalance; 
     const tenMonthsSalary = 10 * avgSalary10Months;
 
     const exemptAmount = Math.min(received, limit, cashEquivalent, tenMonthsSalary);
@@ -48,27 +46,25 @@ const calculateLeaveEncashment = (details, isGovt) => {
 };
 
 const calculatePension = (details, isGovt) => {
-    // Section 10(10A) - Commuted vs Uncommuted
+    // Section 10(10A)
     if (!details) return { taxable: 0, exempt: 0 };
     
-    // 1. Uncommuted (Monthly) - Fully Taxable for everyone
+    // 1. Uncommuted (Monthly) - Fully Taxable
     let taxable = Number(details.uncommuted) || 0;
     
     // 2. Commuted (Lump Sum)
     if (details.commutedReceived) {
         let exemptCommuted = 0;
         if (isGovt) {
-            exemptCommuted = details.commutedReceived; // Fully exempt
+            exemptCommuted = details.commutedReceived;
         } else {
-            // Non-Govt Limits
             const totalCorpus = details.commutedReceived / (details.commutationPercentage / 100);
             if (details.hasGratuity) {
-                exemptCommuted = totalCorpus / 3; // 1/3 exempt if gratuity received
+                exemptCommuted = totalCorpus / 3; 
             } else {
-                exemptCommuted = totalCorpus / 2; // 1/2 exempt if no gratuity
+                exemptCommuted = totalCorpus / 2; 
             }
         }
-        // Cap exemption to actual received
         exemptCommuted = Math.min(exemptCommuted, details.commutedReceived);
         taxable += (details.commutedReceived - exemptCommuted);
     }
@@ -94,9 +90,6 @@ const calculateHRA = (basic, hraReceived, rentPaid, isMetro) => {
 // ==========================================
 
 const calculateChapterVIA = (deductionsInput, regime) => {
-    // New Regime disallows most Chapter VI-A (except 80CCD(2), 80JJAA etc.)
-    // We calculate "Eligible Deductions" assuming Old Regime for comparison
-    
     if (!deductionsInput) return 0;
     let totalDeduction = 0;
 
@@ -104,9 +97,7 @@ const calculateChapterVIA = (deductionsInput, regime) => {
     const sec80C = Math.min(Number(deductionsInput.section80C) || 0, 150000);
     totalDeduction += sec80C;
 
-    // 80D (Health Insurance)
-    // Basic: 25k, Seniors: 50k. Parents: +25k/50k. 
-    // Simplified here to max 1L (User inputs total eligible amount)
+    // 80D (Health Insurance) - Simplified (User enters total eligible)
     const sec80D = Number(deductionsInput.section80D) || 0;
     totalDeduction += sec80D;
 
@@ -114,54 +105,78 @@ const calculateChapterVIA = (deductionsInput, regime) => {
     const sec80CCD1B = Math.min(Number(deductionsInput.section80CCD1B) || 0, 50000);
     totalDeduction += sec80CCD1B;
 
-    // 80G (Donations) - Assumed 50% or 100% deduction eligible amount is entered directly
-    const sec80G = Number(deductionsInput.section80G) || 0;
-    totalDeduction += sec80G;
-
-    // 80E (Education Loan Interest) - No Limit
-    const sec80E = Number(deductionsInput.section80E) || 0;
-    totalDeduction += sec80E;
-
-    // 80TTA/TTB (Savings Interest)
-    const sec80TT = Number(deductionsInput.section80TT) || 0;
-    totalDeduction += sec80TT;
+    // 80G, 80E, 80TTA
+    totalDeduction += (Number(deductionsInput.section80G) || 0);
+    totalDeduction += (Number(deductionsInput.section80E) || 0);
+    totalDeduction += (Number(deductionsInput.section80TT) || 0);
 
     return totalDeduction;
 };
 
-// ... [Keep Helper 1 (calculateSlabTax) and Helper 2 (calculateSurcharge) unchanged from previous code] ...
-// (Re-inserting them briefly for context continuity)
+// ==========================================
+//   PART 3: TAX HELPERS
+// ==========================================
+
 const calculateSlabTax = (taxableIncome, regime, financialYear, ageGroup) => {
     let tax = 0;
     let income = Math.max(0, Number(taxableIncome));
+
     if (regime === 'Old') {
         let limit = ageGroup === '>80' ? 500000 : (ageGroup === '60-80' ? 300000 : 250000);
-        if (income > 1000000) tax = 112500 + (income - 1000000) * 0.30;
-        else if (income > 500000) tax = 12500 + (income - 500000) * 0.20;
-        else if (income > limit) tax = (income - limit) * 0.05;
         
-        // Adjust tax for Senior Citizens specifically in logic if needed, simplified above
-        // 87A Old
+        if (income > 1000000) {
+            tax += (income - 1000000) * 0.30;
+            tax += (1000000 - 500000) * 0.20;
+            tax += (500000 - limit) * 0.05;
+        } else if (income > 500000) {
+            tax += (income - 500000) * 0.20;
+            tax += (500000 - limit) * 0.05;
+        } else if (income > limit) {
+            tax += (income - limit) * 0.05;
+        }
+        
+        // Rebate 87A (Old Regime)
         if (income <= 500000) tax = 0;
     } else {
-        // New Regime (FY 25-26 logic simplified)
-        if (income > 2400000) tax = 300000 + (income - 2400000) * 0.30; // Approx logic
-        // ... [Use full logic from previous file] ...
-        // Using a shortened simplified calculator for this snippet to save space, 
-        // *Please ensure the full slab logic from previous response is kept here*
-        if (income <= 1200000 && financialYear === '2025-2026') tax = 0; 
+        // New Regime (FY 2025-26)
+        if (financialYear === '2025-2026' || financialYear === '2024-2025') {
+            if (income > 2400000) tax += (income - 2400000) * 0.30 + (400000*0.25) + (400000*0.20) + (400000*0.15) + (400000*0.10) + (400000*0.05);
+            else if (income > 2000000) tax += (income - 2000000) * 0.25 + (400000*0.20) + (400000*0.15) + (400000*0.10) + (400000*0.05);
+            else if (income > 1600000) tax += (income - 1600000) * 0.20 + (400000*0.15) + (400000*0.10) + (400000*0.05);
+            else if (income > 1200000) tax += (income - 1200000) * 0.15 + (400000*0.10) + (400000*0.05);
+            else if (income > 800000) tax += (income - 800000) * 0.10 + (400000*0.05);
+            else if (income > 400000) tax += (income - 400000) * 0.05;
+        } else {
+            // Older Logic Fallback
+            if (income > 1500000) tax += (income - 1500000) * 0.30 + 150000;
+            else if (income > 1200000) tax += (income - 1200000) * 0.20 + 90000;
+            else if (income > 900000) tax += (income - 900000) * 0.15 + 45000;
+            else if (income > 600000) tax += (income - 600000) * 0.10 + 15000;
+            else if (income > 300000) tax += (income - 300000) * 0.05;
+        }
+
+        // Rebate 87A (New Regime)
+        if (financialYear === '2025-2026' && income <= 1200000) tax = 0;
         else if (income <= 700000) tax = 0;
     }
+    
     return tax > 0 ? tax * 1.04 : 0;
 };
-const calculateSurcharge = (tax, income, regime) => { /* ... existing logic ... */ return 0; }; // Placeholder
 
+const calculateSurcharge = (tax, taxableIncome, regime) => {
+    let rate = 0;
+    if (taxableIncome > 50000000) rate = regime === 'Old' ? 0.37 : 0.25; 
+    else if (taxableIncome > 20000000) rate = 0.25;
+    else if (taxableIncome > 10000000) rate = 0.15;
+    else if (taxableIncome > 5000000) rate = 0.10;
+    return tax * rate;
+};
 
 // --- HELPER 4: AI GEMINI TIPS ---
 const getGeminiTips = async (geminiContext) => {
     if (!genAI) return null; 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); // Stable Model
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); 
         const prompt = `
             Act as an expert Indian CA. Analyze this tax profile:
             Context: ${JSON.stringify(geminiContext)}
@@ -173,16 +188,15 @@ const getGeminiTips = async (geminiContext) => {
     } catch (e) { return null; }
 };
 
-
 // ==========================================
-//   MAIN CONTROLLER: calculateTax
+//   MAIN CONTROLLER FUNCTIONS
 // ==========================================
 
 const calculateTax = async (req, res) => {
     try {
         const { 
             userId, financialYear, ageGroup, residentialStatus, 
-            income, deductions, // Updated structure: deductions is now an object
+            income, deductions, 
             taxesPaid, name, familyStatus, riskTolerance 
         } = req.body;
 
@@ -193,7 +207,7 @@ const calculateTax = async (req, res) => {
         if (income.salary?.enabled) {
             const s = income.salary;
             const isGovt = s.employmentType === 'Government'; 
-            let stdDed = (financialYear === '2025-2026') ? 75000 : 50000;
+            let stdDed = (financialYear === '2025-2026' || financialYear === '2024-2025') ? 75000 : 50000;
 
             if (s.detailedMode) {
                 // A. Basic + DA
@@ -219,19 +233,19 @@ const calculateTax = async (req, res) => {
                 basicTotal += pensionCalc.taxable;
                 salaryExemptions.pension = pensionCalc.exempt;
 
-                // F. Perquisites (Value is generally fully taxable unless specific rules applied)
+                // F. Perquisites
                 const perqs = Number(s.perquisites?.taxableValue) || 0;
                 basicTotal += perqs;
 
-                // G. Allowances (LTA, Uniform, etc. - Simplification: User enters taxable portion)
+                // G. Allowances
                 const otherAllowances = Number(s.otherAllowancesTaxable) || 0;
                 basicTotal += otherAllowances;
 
                 totalSalaryTaxable = Math.max(0, basicTotal - stdDed);
 
             } else {
-                // Simple Mode (Legacy support)
-                let basic = (Number(s.basic)||0) + (Number(s.hra)||0) + (Number(s.allowances)||0);
+                // Simple Mode
+                let basic = (Number(s.basic)||0) + (Number(s.hra)||0) + (Number(s.allowances)||0) + (Number(s.bonus)||0);
                 totalSalaryTaxable = Math.max(0, basic - stdDed);
             }
         }
@@ -239,7 +253,6 @@ const calculateTax = async (req, res) => {
         // --- 2. OTHER HEADS ---
         let businessIncome = 0;
         if (income.business?.enabled) {
-            // (Business logic pending detailed update in Phase 2)
              const b = income.business;
              businessIncome = (b.is44AD || b.is44ADA) 
                 ? (Number(b.turnover) * (Number(b.presumptiveRate)||6)) / 100 
@@ -266,34 +279,40 @@ const calculateTax = async (req, res) => {
         const grossTotalIncome = totalSalaryTaxable + businessIncome + hpIncome + otherSrcIncome;
 
         // --- 4. DEDUCTIONS (Chapter VI-A) ---
-        // Calculate Total Deductions eligible under Old Regime
         const totalDeductions = calculateChapterVIA(deductions, 'Old');
-        
-        // Net Taxable Income
         const netTaxableOld = Math.max(0, grossTotalIncome - totalDeductions);
-        
-        // New Regime usually disallows these (except 80CCD(2) - ignored for simplicity here)
-        // Standard Deduction is already subtracted from Salary for both regimes (assuming FY25 logic)
         const netTaxableNew = Math.max(0, grossTotalIncome); 
 
         // --- 5. CALCULATE TAX ---
-        // (Note: You need to insert your full `calculateSlabTax` logic here)
-        // I am calling the simplified placeholders for brevity in this snippet
         let taxOld = calculateSlabTax(netTaxableOld, 'Old', financialYear, ageGroup);
         let taxNew = calculateSlabTax(netTaxableNew, 'New', financialYear, ageGroup);
         
-        // Surcharge & Cess
         taxOld = (taxOld + calculateSurcharge(taxOld, netTaxableOld, 'Old')) * 1.04;
         taxNew = (taxNew + calculateSurcharge(taxNew, netTaxableNew, 'New')) * 1.04;
 
         const finalTax = Math.min(taxOld, taxNew);
         const recommendation = taxNew <= taxOld ? "New Regime" : "Old Regime";
 
+        // Net Payable
+        const totalPaid = (Number(taxesPaid?.tds)||0) + (Number(taxesPaid?.advanceTax)||0) + (Number(taxesPaid?.selfAssessment)||0);
+        const netPayable = Math.max(0, finalTax - totalPaid);
+
+        // Advance Tax Schedule
+        let advanceTaxSchedule = [];
+        if (netPayable > 10000) {
+            advanceTaxSchedule = [
+                { dueDate: "15th June", percentage: "15%", amountDue: Math.round(finalTax * 0.15) },
+                { dueDate: "15th Sept", percentage: "45%", amountDue: Math.round(finalTax * 0.30) },
+                { dueDate: "15th Dec", percentage: "75%", amountDue: Math.round(finalTax * 0.30) },
+                { dueDate: "15th Mar", percentage: "100%", amountDue: Math.round(finalTax * 0.25) }
+            ];
+        }
+
         // --- 6. AI ANALYSIS ---
         const geminiContext = {
             name, age: ageGroup, grossTotalIncome, 
             salaryDetails: income.salary?.detailedMode ? "Detailed Computed" : "Basic",
-            exemptionsClaimed: salaryExemptions, // Pass the calculated exemptions to AI
+            exemptionsClaimed: salaryExemptions,
             deductions: deductions,
             oldRegimeTax: Math.round(taxOld),
             newRegimeTax: Math.round(taxNew)
@@ -304,8 +323,8 @@ const calculateTax = async (req, res) => {
         // --- 7. SAVE & RESPONSE ---
         if (userId) {
             await TaxRecord.create({
-                user: userId, financialYear, income, deductions,
-                computedTax: { oldRegimeTax: taxOld, newRegimeTax: taxNew, finalTax, recommendation },
+                user: userId, financialYear, ageGroup, residentialStatus, income, deductions, taxesPaid,
+                computedTax: { oldRegimeTax: taxOld, newRegimeTax: taxNew, taxPayable: finalTax, netTaxPayable: netPayable, regimeSelected: recommendation },
                 grossTotalIncome
             });
         }
@@ -313,14 +332,17 @@ const calculateTax = async (req, res) => {
         res.json({
             grossTotalIncome,
             salaryBreakdown: {
-                gross: totalSalaryTaxable + (financialYear === '2025-2026'?75000:50000), // approx
+                gross: totalSalaryTaxable + (financialYear === '2025-2026'?75000:50000), 
                 taxable: totalSalaryTaxable,
                 exemptions: salaryExemptions
             },
             deductionsClaimed: totalDeductions,
             oldRegime: { taxableIncome: netTaxableOld, tax: Math.round(taxOld) },
             newRegime: { taxableIncome: netTaxableNew, tax: Math.round(taxNew) },
+            netPayable: Math.round(netPayable),
+            totalPaid,
             recommendation,
+            advanceTaxSchedule,
             suggestions
         });
 
@@ -330,4 +352,20 @@ const calculateTax = async (req, res) => {
     }
 };
 
-module.exports = { calculateTax };
+// --- RESTORED FUNCTIONS ---
+
+const getTaxHistory = async (req, res) => {
+    try {
+        const history = await TaxRecord.find({ user: req.query.userId }).sort({ createdAt: -1 });
+        res.json(history);
+    } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
+const deleteTaxRecord = async (req, res) => {
+    try {
+        await TaxRecord.findByIdAndDelete(req.params.id);
+        res.json({ message: "Deleted" });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
+module.exports = { calculateTax, getTaxHistory, deleteTaxRecord };
