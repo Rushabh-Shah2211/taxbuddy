@@ -5,6 +5,7 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 import logo from '../assets/rb_logo.png';
 import './Dashboard.css';
+import AITaxAdvisor from './AITaxAdvisor';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -141,6 +142,10 @@ const Dashboard = () => {
                                 <span className="tile-icon">👤</span>
                                 <span className="tile-text">Profile</span>
                             </Link>
+				<AITaxAdvisor 
+ 				   userProfile={user} 
+  				  calculationData={latestCalc} 
+				/>
                         </div>
                     </div>
 

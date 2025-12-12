@@ -5,6 +5,8 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable'; // Ensures PDF tables work
 import logo from '../assets/rb_logo.png';
 import './TaxCalculator.css';
+import AITaxAdvisor from './AITaxAdvisor';
+import DetailedSalaryCalculator from './DetailedSalaryCalculator';
 
 const TaxCalculator = () => {
     const [user, setUser] = useState(null);
@@ -177,7 +179,21 @@ const TaxCalculator = () => {
             <div className="wizard-content">
                 {/* STEPS 1-8 (Inputs) - Kept Compact */}
                 {step === 1 && (<div className="fade-in"><h3>📋 Basic Information</h3><div className="form-grid"><div className="input-group"><label>Financial Year</label><select name="financialYear" value={formData.financialYear} onChange={handleChange}><option value="2025-2026">FY 2025-26 (Latest)</option><option value="2024-2025">FY 2024-25</option><option value="2023-2024">FY 2023-24</option></select></div><div className="input-group"><label>Age Group</label><select name="ageGroup" value={formData.ageGroup} onChange={handleChange}><option value="<60">Below 60</option><option value="60-80">60 - 80 (Senior)</option><option value=">80">Above 80 (Super Senior)</option></select></div><div className="input-group"><label>Residential Status</label><select name="residentialStatus" value={formData.residentialStatus} onChange={handleChange}><option value="Resident">Resident</option><option value="NRI">Non-Resident</option></select></div></div></div>)}
-                {step === 2 && (<div className="fade-in"><h3>💼 Salary Income</h3><div className="toggle-wrapper"><label>Salary Income?</label><div className="btn-group"><button className={formData.salaryEnabled?'active':''} onClick={()=>setFormData({...formData,salaryEnabled:true})}>Yes</button><button className={!formData.salaryEnabled?'active':''} onClick={()=>setFormData({...formData,salaryEnabled:false})}>No</button></div></div>{formData.salaryEnabled&&( <div className="form-grid"><input placeholder="Basic Salary" name="basic" value={formData.basic} onChange={handleChange}/><input placeholder="HRA" name="hra" value={formData.hra} onChange={handleChange}/><input placeholder="Gratuity" name="gratuity" value={formData.gratuity} onChange={handleChange}/><input placeholder="Pension" name="pension" value={formData.pension} onChange={handleChange}/><input placeholder="Prev. Employer Salary" name="prevSalary" value={formData.prevSalary} onChange={handleChange}/><input placeholder="Allowances" name="allowances" value={formData.allowances} onChange={handleChange}/></div>)}</div>)}
+                {step === 2 && (
+    <div className="fade-in">
+        <h3>💼 Salary Income</h3>
+        <DetailedSalaryCalculator 
+            onDataChange={(data) => {
+                setFormData(prev => ({
+                    ...prev,
+                    salaryEnabled: true,
+                    ...data
+                }));
+            }}
+            initialData={formData}
+        />
+    </div>
+)}
                 {step === 3 && (<div className="fade-in"><h3>🏢 Business / Profession</h3><div className="toggle-wrapper"><label>Business Income?</label><div className="btn-group"><button className={formData.businessEnabled?'active':''} onClick={()=>setFormData({...formData,businessEnabled:true})}>Yes</button><button className={!formData.businessEnabled?'active':''} onClick={()=>setFormData({...formData,businessEnabled:false})}>No</button></div></div>{formData.businessEnabled&&( <div className="form-grid"><input placeholder="Total Turnover" name="turnover" value={formData.turnover} onChange={handleChange}/><div className="checkbox-group"><label><input type="checkbox" checked={formData.is44AD} onChange={(e)=>setFormData({...formData,is44AD:e.target.checked})}/> 44AD</label><label><input type="checkbox" checked={formData.is44ADA} onChange={(e)=>setFormData({...formData,is44ADA:e.target.checked})}/> 44ADA</label></div>{ (formData.is44AD||formData.is44ADA)?(<> <input placeholder="Rate %" name="presumptiveRate" value={formData.presumptiveRate} onChange={handleChange}/><div className="live-calc">Est. Profit: ₹{(Number(formData.turnover)*(Number(formData.presumptiveRate)/100)).toFixed(0)}</div></>):(<input placeholder="Actual Net Profit" name="profit" value={formData.profit} onChange={handleChange}/>)}</div>)}</div>)}
                 {step === 4 && (<div className="fade-in"><h3>🏠 House Property</h3><div className="toggle-wrapper"><label>Own House Property?</label><div className="btn-group"><button className={formData.hpEnabled?'active':''} onClick={()=>setFormData({...formData,hpEnabled:true})}>Yes</button><button className={!formData.hpEnabled?'active':''} onClick={()=>setFormData({...formData,hpEnabled:false})}>No</button></div></div>{formData.hpEnabled&&( <><select name="hpType" value={formData.hpType} onChange={handleChange} style={{marginBottom:'15px'}}><option value="Self Occupied">Self Occupied</option><option value="Rented">Rented</option></select><div className="form-grid">{formData.hpType==='Rented'&&( <><input placeholder="Rent Received" name="rentReceived" value={formData.rentReceived} onChange={handleChange}/><input placeholder="Municipal Taxes" name="municipalTaxes" value={formData.municipalTaxes} onChange={handleChange}/></>)}<input placeholder="Interest on Loan" name="interestPaid" value={formData.interestPaid} onChange={handleChange}/></div></>)}</div>)}
                 {step === 5 && (<div className="fade-in"><h3>💰 Other Income</h3><div className="toggle-wrapper"><label>Other income?</label><div className="btn-group"><button className={formData.otherEnabled?'active':''} onClick={()=>setFormData({...formData,otherEnabled:true})}>Yes</button><button className={!formData.otherEnabled?'active':''} onClick={()=>setFormData({...formData,otherEnabled:false})}>No</button></div></div>{formData.otherEnabled&&( <div>{formData.otherSources.map((source,index)=>( <div key={index} className="form-grid" style={{marginBottom:'10px'}}><input placeholder="Name" name="name" value={source.name} onChange={(e)=>handleOtherIncomeChange(index,e)}/><input placeholder="Amount" name="amount" value={source.amount} onChange={(e)=>handleOtherIncomeChange(index,e)}/><input placeholder="Expenses" name="expenses" value={source.expenses} onChange={(e)=>handleOtherIncomeChange(index,e)}/>{index>0&&<button className="btn-danger-small" onClick={()=>removeOtherIncomeRow(index)}>X</button>}</div>))}<button className="btn-secondary" onClick={addOtherIncomeRow}>+ Add Line</button></div>)}</div>)}
@@ -280,6 +296,10 @@ const TaxCalculator = () => {
                 {step < 8 && <button className="btn-primary" onClick={()=>setStep(step+1)}>Next</button>}
                 {step === 8 && <button className="btn-success" onClick={calculateTax}>{loading ? 'Calculating...' : 'Submit'}</button>}
             </div>
+		<AITaxAdvisor 
+   		 userProfile={user} 
+   		 calculationData={result} 
+		/>
         </div>
     );
 };

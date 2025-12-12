@@ -368,4 +368,33 @@ const deleteTaxRecord = async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
-module.exports = { calculateTax, getTaxHistory, deleteTaxRecord };
+const aiTaxAdvisor = async (req, res) => {
+    try {
+        const { question, userProfile, calculationData } = req.body;
+
+        if (!genAI) {
+            return res.status(503).json({ 
+                response: "AI service is temporarily unavailable." 
+            });
+        }
+
+        let context = `You are an expert Indian CA. Answer: ${question}\n`;
+        
+        if (calculationData) {
+            context += `Tax Data: Income ₹${calculationData.grossTotalIncome}, Tax ₹${calculationData.netPayable}\n`;
+        }
+        
+        context += `Provide concise, actionable Indian tax advice (max 300 words).`;
+
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+        const result = await model.generateContent(context);
+        
+        res.json({ response: result.response.text() });
+    } catch (error) {
+        res.status(500).json({ 
+            response: "Sorry, I'm having trouble right now. Please try again." 
+        });
+    }
+};
+
+module.exports = { calculateTax, getTaxHistory, deleteTaxRecord, aiTaxAdvisor };

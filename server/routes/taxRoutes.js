@@ -5,5 +5,6 @@ const { calculateTax, getTaxHistory, deleteTaxRecord } = require('../controllers
 router.post('/calculate', calculateTax);
 router.get('/history', getTaxHistory);
 router.delete('/:id', deleteTaxRecord); // <--- NEW DELETE ROUTE
+router.post('/ai-advisor', aiTaxAdvisor);
 
 module.exports = router;

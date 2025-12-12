@@ -22,7 +22,7 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password/:resetToken" element={<ResetPassword />} />
-          <Route path="/history" element={<History />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           
           {/* --- Main App Routes --- */}
           <Route path="/calculator" element={<TaxCalculator />} />
