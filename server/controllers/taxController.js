@@ -98,40 +98,79 @@ const calculateTax = async (req, res) => {
             const isGovt = s.employmentType === 'Government';
             let stdDed = 75000;
 
-            if (s.detailedMode) {
-                // --- FIX: Extract simple numbers from complex objects ---
-                let taxableBasic = (Number(s.basic)||0) + (Number(s.da)||0) + (Number(s.bonus)||0);
+            // Always extract/compute taxable values, regardless of detailedMode
+            // This handles both simple (numbers) and detailed (objects) inputs
+            let taxableBasic = (Number(s.basic) || 0) + (Number(s.da) || 0) + (Number(s.bonus) || 0);
+            let hraTaxable = Number(s.hra) || 0;
+            let gratTaxable = 0;
+            let leaveTaxable = 0;
+            let pensionTaxable = 0;
+            let perqs = Number(s.perquisites?.taxableValue) || 0;
+            let otherAll = Number(s.otherAllowancesTaxable) || Number(s.allowances) || 0;
+
+            // Compute HRA exemption if rent details are provided
+            if (s.rentPaid && s.hra) {
                 const hraCalc = calculateHRA(s.basic, s.hra, s.rentPaid, s.isMetro);
-                const gratCalc = calculateGratuity(s.gratuity, isGovt);
-                const leaveCalc = calculateLeaveEncashment(s.leaveEncashment, isGovt);
-                const pensionCalc = calculatePension(s.pension, isGovt);
-                const perqs = Number(s.perquisites?.taxableValue) || 0;
-                const otherAll = Number(s.otherAllowancesTaxable) || 0;
-
-                // 1. SAVE NUMBERS (Taxable) - This stops the crash
-                salaryRecord.basic = taxableBasic;
-                salaryRecord.hra = hraCalc.taxable;
-                salaryRecord.gratuity = gratCalc.taxable;
-                salaryRecord.leaveEncashment = leaveCalc.taxable;
-                salaryRecord.pension = pensionCalc.taxable;
-                salaryRecord.perquisites = perqs;
-                salaryRecord.allowances = otherAll;
-
-                // 2. SAVE RAW OBJECTS (Details) - This preserves data
-                salaryRecord.details = {
-                    rentPaid: s.rentPaid, isMetro: s.isMetro,
-                    gratuityInput: s.gratuity,
-                    leaveInput: s.leaveEncashment,
-                    pensionInput: s.pension
-                };
-
-                const grossSalary = taxableBasic + hraCalc.taxable + gratCalc.taxable + leaveCalc.taxable + pensionCalc.taxable + perqs + otherAll;
-                totalSalaryTaxable = Math.max(0, grossSalary - stdDed);
-
-            } else {
-                let basic = (Number(s.basic)||0) + (Number(s.hra)||0) + (Number(s.allowances)||0) + (Number(s.bonus)||0);
-                totalSalaryTaxable = Math.max(0, basic - stdDed);
+                hraTaxable = hraCalc.taxable;
             }
+
+            // Compute Gratuity if present
+            if (s.gratuity) {
+                if (typeof s.gratuity === 'object') {
+                    const gratCalc = calculateGratuity(s.gratuity, isGovt);
+                    gratTaxable = gratCalc.taxable;
+                } else {
+                    gratTaxable = Number(s.gratuity) || 0;
+                }
+            }
+
+            // Compute Leave Encashment if present
+            if (s.leaveEncashment) {
+                if (typeof s.leaveEncashment === 'object') {
+                    const leaveCalc = calculateLeaveEncashment(s.leaveEncashment, isGovt);
+                    leaveTaxable = leaveCalc.taxable;
+                } else {
+                    leaveTaxable = Number(s.leaveEncashment) || 0;
+                }
+            }
+
+            // Compute Pension if present
+            if (s.pension) {
+                if (typeof s.pension === 'object') {
+                    const pensionCalc = calculatePension(s.pension, isGovt);
+                    pensionTaxable = pensionCalc.taxable;
+                } else {
+                    pensionTaxable = Number(s.pension) || 0;
+                }
+            }
+
+            // Set taxable numbers in salaryRecord (ensures schema compliance)
+            salaryRecord.basic = taxableBasic;
+            salaryRecord.hra = hraTaxable;
+            salaryRecord.gratuity = gratTaxable;
+            salaryRecord.leaveEncashment = leaveTaxable;
+            salaryRecord.pension = pensionTaxable;
+            salaryRecord.perquisites = perqs;
+            salaryRecord.allowances = otherAll;
+
+            // Preserve raw input details for complex fields
+            salaryRecord.details = {
+                rentPaid: s.rentPaid,
+                isMetro: s.isMetro || false
+            };
+            if (s.gratuity && typeof s.gratuity === 'object') {
+                salaryRecord.details.gratuityInput = s.gratuity;
+            }
+            if (s.leaveEncashment && typeof s.leaveEncashment === 'object') {
+                salaryRecord.details.leaveInput = s.leaveEncashment;
+            }
+            if (s.pension && typeof s.pension === 'object') {
+                salaryRecord.details.pensionInput = s.pension;
+            }
+
+            // Compute gross salary from all taxable components
+            const grossSalary = taxableBasic + hraTaxable + gratTaxable + leaveTaxable + pensionTaxable + perqs + otherAll;
+            totalSalaryTaxable = Math.max(0, grossSalary - stdDed);
         }
 
         // Other Income Heads
