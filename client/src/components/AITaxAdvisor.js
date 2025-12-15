@@ -1,22 +1,76 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 const AITaxAdvisor = ({ userProfile, calculationData }) => {
     const [chatHistory, setChatHistory] = useState([]);
     const [userQuestion, setUserQuestion] = useState('');
     const [loading, setLoading] = useState(false);
     const [showChat, setShowChat] = useState(false);
+    const [activeCategory, setActiveCategory] = useState(null);
+    const chatEndRef = useRef(null);
 
-    const quickQuestions = [
-        "How can I reduce my tax liability?",
-        "Should I choose Old or New regime?",
-        "What investments are best for tax saving?",
-        "How much should I invest in 80C?",
-        "Can I claim HRA exemption?",
-        "What are advance tax due dates?"
-    ];
+    // Scroll to bottom on new message
+    useEffect(() => {
+        if (chatEndRef.current) {
+            chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [chatHistory, showChat, activeCategory]);
+
+    // Exhaustive Question Database mapped to Categories
+    const questionCategories = {
+        "Basics & Login": [
+            "Which ITR form applies to me?",
+            "I forgot my password, how do I reset it?",
+            "How do I link PAN with Aadhaar?",
+            "What is the difference between Old and New Regime?",
+            "Can I file a return after the due date?"
+        ],
+        "Salary & HRA": [
+            "How is HRA calculated?",
+            "My employer hasn't given me Form 16 yet.",
+            "Can I claim LTA for international travel?",
+            "Is standard deduction available in New Regime?",
+            "Can I claim HRA if I live with parents?"
+        ],
+        "Deductions (80C/80D)": [
+            "What is the limit for Section 80C?",
+            "Does term insurance come under 80C?",
+            "Can I claim 80D for my parents?",
+            "Is interest from Savings Account taxable (80TTA)?",
+            "What is the extra deduction for NPS?"
+        ],
+        "Business & Freelance": [
+            "What is Presumptive Taxation (44ADA)?",
+            "Can a YouTuber file under 44ADA?",
+            "Do I need to maintain books of accounts?",
+            "Can I deduct my laptop cost as an expense?",
+            "What is the due date for Tax Audit?"
+        ],
+        "Capital Gains": [
+            "What is the tax rate for Short Term Capital Gains?",
+            "How is the sale of Gold jewelry taxed?",
+            "Can I save tax by buying a new house (Sec 54)?",
+            "What is the 1 Lakh exemption on LTCG?",
+            "How to report loss in Intraday trading?"
+        ],
+        "Crypto & VDA": [
+            "Is Bitcoin legal in India?",
+            "Is it flat 30% tax on crypto?",
+            "Can I set off Crypto loss against Salary?",
+            "What is 1% TDS on Crypto (Sec 194S)?",
+            "How to report P2P transactions?"
+        ],
+        "Refunds & Filing": [
+            "Where is my tax refund?",
+            "My refund failed. What should I do?",
+            "How do I e-verify my return?",
+            "What is a Defective Return notice?",
+            "Can I revise my return after filing?"
+        ]
+    };
 
     const askAI = async (question) => {
         setLoading(true);
+        setActiveCategory(null); // Reset category view on ask
         const newChat = [...chatHistory, { role: 'user', text: question }];
         setChatHistory(newChat);
         setUserQuestion('');
@@ -38,7 +92,7 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
         } catch (error) {
             setChatHistory([...newChat, { 
                 role: 'assistant', 
-                text: 'Sorry, I encountered an error. Please try again.' 
+                text: 'Sorry, I encountered an error connecting to the server. Please try again.' 
             }]);
         }
         setLoading(false);
@@ -49,112 +103,167 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
         if (userQuestion.trim()) askAI(userQuestion);
     };
 
+    // Helper to format bot responses (Bold, Line breaks, Bullets)
+    const formatMessage = (text) => {
+        if (!text) return null;
+        
+        // Split by newlines first
+        return text.split('\n').map((line, i) => {
+            // Check for bold syntax **text**
+            const parts = line.split(/(\*\*.*?\*\*)/g);
+            return (
+                <div key={i} style={{ minHeight: line.trim() === '' ? '10px' : 'auto' }}>
+                    {parts.map((part, j) => {
+                        if (part.startsWith('**') && part.endsWith('**')) {
+                            return <strong key={j}>{part.slice(2, -2)}</strong>;
+                        }
+                        return part;
+                    })}
+                </div>
+            );
+        });
+    };
+
     return (
-        <div style={{
-            position: 'fixed',
-            bottom: '20px',
-            right: '20px',
-            zIndex: 1000
-        }}>
+        <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 1000 }}>
+            {/* Floating Action Button */}
             {!showChat && (
                 <button
                     onClick={() => setShowChat(true)}
                     style={{
-                        width: '60px',
-                        height: '60px',
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        border: 'none',
-                        color: 'white',
-                        fontSize: '24px',
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
-                        transition: 'transform 0.2s'
+                        width: '60px', height: '60px', borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #1a237e 0%, #0d47a1 100%)',
+                        border: 'none', color: 'white', fontSize: '28px',
+                        cursor: 'pointer', boxShadow: '0 4px 15px rgba(13, 71, 161, 0.4)',
+                        transition: 'transform 0.2s, box-shadow 0.2s',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
                     }}
-                    onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                    onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                    onMouseOver={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.1)';
+                        e.currentTarget.style.boxShadow = '0 6px 20px rgba(13, 71, 161, 0.6)';
+                    }}
+                    onMouseOut={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.boxShadow = '0 4px 15px rgba(13, 71, 161, 0.4)';
+                    }}
                 >
                     🤖
                 </button>
             )}
 
+            {/* Chat Window */}
             {showChat && (
                 <div style={{
-                    width: '380px',
-                    height: '550px',
-                    background: 'white',
-                    borderRadius: '20px',
-                    boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden'
+                    width: '380px', height: '600px', background: 'white',
+                    borderRadius: '20px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+                    display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
                 }}>
+                    {/* Header */}
                     <div style={{
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        padding: '20px',
-                        color: 'white',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
+                        background: 'linear-gradient(135deg, #1a237e 0%, #0d47a1 100%)',
+                        padding: '20px', color: 'white', display: 'flex',
+                        justifyContent: 'space-between', alignItems: 'center'
                     }}>
                         <div>
-                            <h3 style={{ margin: 0, fontSize: '18px' }}>🤖 AI Tax Advisor</h3>
-                            <p style={{ margin: '5px 0 0', fontSize: '12px', opacity: 0.9 }}>
-                                Powered by Gemini AI
+                            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Tax Assistant</h3>
+                            <p style={{ margin: '4px 0 0', fontSize: '12px', opacity: 0.85 }}>
+                                Experts powered by AI
                             </p>
                         </div>
                         <button
                             onClick={() => setShowChat(false)}
                             style={{
-                                background: 'rgba(255,255,255,0.2)',
-                                border: 'none',
-                                color: 'white',
-                                fontSize: '20px',
-                                cursor: 'pointer',
-                                borderRadius: '50%',
-                                width: '30px',
-                                height: '30px'
+                                background: 'rgba(255,255,255,0.2)', border: 'none',
+                                color: 'white', fontSize: '18px', cursor: 'pointer',
+                                borderRadius: '50%', width: '32px', height: '32px',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center'
                             }}
                         >
                             ✕
                         </button>
                     </div>
 
+                    {/* Chat Body */}
                     <div style={{
-                        flex: 1,
-                        overflowY: 'auto',
-                        padding: '20px',
-                        background: '#f8f9fa'
+                        flex: 1, overflowY: 'auto', padding: '20px',
+                        background: '#f4f6f8', display: 'flex', flexDirection: 'column'
                     }}>
-                        {chatHistory.length === 0 && (
-                            <div style={{ textAlign: 'center', padding: '20px' }}>
-                                <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
-                                    👋 Hi! I'm your AI tax advisor. Ask me anything about taxes!
+                        {/* Welcome State */}
+                        {chatHistory.length === 0 && !activeCategory && (
+                            <div style={{ textAlign: 'center', marginTop: '10px' }}>
+                                <div style={{ fontSize: '40px', marginBottom: '10px' }}>👋</div>
+                                <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>How can I help you today?</h4>
+                                <p style={{ color: '#666', fontSize: '13px', marginBottom: '20px' }}>
+                                    Select a topic below to see common questions:
                                 </p>
+                                
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+                                    {Object.keys(questionCategories).map((category, i) => (
+                                        <button
+                                            key={i}
+                                            onClick={() => setActiveCategory(category)}
+                                            style={{
+                                                padding: '8px 12px',
+                                                background: 'white',
+                                                border: '1px solid #dae1e7',
+                                                borderRadius: '20px',
+                                                cursor: 'pointer',
+                                                fontSize: '12px',
+                                                color: '#1a237e',
+                                                fontWeight: '500',
+                                                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                                                transition: 'all 0.2s'
+                                            }}
+                                            onMouseOver={(e) => {
+                                                e.currentTarget.style.background = '#e8eaf6';
+                                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                            }}
+                                            onMouseOut={(e) => {
+                                                e.currentTarget.style.background = 'white';
+                                                e.currentTarget.style.transform = 'translateY(0)';
+                                            }}
+                                        >
+                                            {category}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Category Questions View */}
+                        {chatHistory.length === 0 && activeCategory && (
+                            <div style={{ marginTop: '10px' }}>
+                                <button 
+                                    onClick={() => setActiveCategory(null)}
+                                    style={{
+                                        background: 'none', border: 'none', color: '#666',
+                                        fontSize: '13px', cursor: 'pointer', marginBottom: '15px',
+                                        display: 'flex', alignItems: 'center'
+                                    }}
+                                >
+                                    ← Back to topics
+                                </button>
+                                <h4 style={{ margin: '0 0 15px 0', color: '#1a237e' }}>{activeCategory}</h4>
                                 <div style={{ display: 'grid', gap: '10px' }}>
-                                    {quickQuestions.map((q, i) => (
+                                    {questionCategories[activeCategory].map((q, i) => (
                                         <button
                                             key={i}
                                             onClick={() => askAI(q)}
                                             style={{
-                                                padding: '12px',
-                                                background: 'white',
-                                                border: '1px solid #e0e0e0',
-                                                borderRadius: '10px',
-                                                cursor: 'pointer',
-                                                fontSize: '13px',
-                                                textAlign: 'left',
+                                                padding: '12px', background: 'white',
+                                                border: '1px solid #dae1e7', borderRadius: '10px',
+                                                cursor: 'pointer', fontSize: '13px', textAlign: 'left',
+                                                color: '#333', boxShadow: '0 2px 5px rgba(0,0,0,0.03)',
                                                 transition: 'all 0.2s'
                                             }}
                                             onMouseOver={(e) => {
-                                                e.currentTarget.style.background = '#667eea';
-                                                e.currentTarget.style.color = 'white';
-                                                e.currentTarget.style.borderColor = '#667eea';
+                                                e.currentTarget.style.borderColor = '#1a237e';
+                                                e.currentTarget.style.color = '#1a237e';
                                             }}
                                             onMouseOut={(e) => {
-                                                e.currentTarget.style.background = 'white';
-                                                e.currentTarget.style.color = 'black';
-                                                e.currentTarget.style.borderColor = '#e0e0e0';
+                                                e.currentTarget.style.borderColor = '#dae1e7';
+                                                e.currentTarget.style.color = '#333';
                                             }}
                                         >
                                             {q}
@@ -164,80 +273,69 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
                             </div>
                         )}
 
+                        {/* Message History */}
                         {chatHistory.map((msg, i) => (
-                            <div
-                                key={i}
-                                style={{
-                                    marginBottom: '15px',
-                                    display: 'flex',
-                                    justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start'
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        maxWidth: '80%',
-                                        padding: '12px 16px',
-                                        borderRadius: '15px',
-                                        background: msg.role === 'user' ? '#667eea' : 'white',
-                                        color: msg.role === 'user' ? 'white' : '#333',
-                                        fontSize: '14px',
-                                        lineHeight: '1.5',
-                                        boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-                                        whiteSpace: 'pre-wrap'
-                                    }}
-                                >
-                                    {msg.text}
+                            <div key={i} style={{
+                                marginBottom: '15px',
+                                display: 'flex',
+                                justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start'
+                            }}>
+                                <div style={{
+                                    maxWidth: '85%',
+                                    padding: '12px 16px',
+                                    borderRadius: msg.role === 'user' ? '15px 15px 0 15px' : '15px 15px 15px 0',
+                                    background: msg.role === 'user' ? '#1a237e' : 'white',
+                                    color: msg.role === 'user' ? 'white' : '#333',
+                                    fontSize: '14px',
+                                    lineHeight: '1.5',
+                                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                                    wordWrap: 'break-word'
+                                }}>
+                                    {msg.role === 'assistant' ? formatMessage(msg.text) : msg.text}
                                 </div>
                             </div>
                         ))}
 
+                        {/* Loading Indicator */}
                         {loading && (
-                            <div style={{ display: 'flex', gap: '5px', padding: '10px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '15px' }}>
                                 <div style={{
-                                    width: '10px',
-                                    height: '10px',
-                                    borderRadius: '50%',
-                                    background: '#667eea',
-                                    animation: 'bounce 0.6s infinite'
-                                }}></div>
-                                <div style={{
-                                    width: '10px',
-                                    height: '10px',
-                                    borderRadius: '50%',
-                                    background: '#667eea',
-                                    animation: 'bounce 0.6s infinite 0.2s'
-                                }}></div>
-                                <div style={{
-                                    width: '10px',
-                                    height: '10px',
-                                    borderRadius: '50%',
-                                    background: '#667eea',
-                                    animation: 'bounce 0.6s infinite 0.4s'
-                                }}></div>
+                                    background: 'white', padding: '12px 16px', borderRadius: '15px 15px 15px 0',
+                                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)'
+                                }}>
+                                    <div style={{ display: 'flex', gap: '5px' }}>
+                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#90a4ae', animation: 'bounce 0.6s infinite' }}></div>
+                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#90a4ae', animation: 'bounce 0.6s infinite 0.2s' }}></div>
+                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#90a4ae', animation: 'bounce 0.6s infinite 0.4s' }}></div>
+                                    </div>
+                                </div>
                             </div>
                         )}
+                        <div ref={chatEndRef} />
                     </div>
 
+                    {/* Disclaimer Footer */}
+                    <div style={{ padding: '8px 20px', background: '#f8f9fa', borderTop: '1px solid #eee' }}>
+                        <p style={{ margin: 0, fontSize: '10px', color: '#999', textAlign: 'center' }}>
+                            AI-generated responses. Please verify with a tax professional.
+                        </p>
+                    </div>
+
+                    {/* Input Area */}
                     <div style={{
-                        padding: '15px',
-                        borderTop: '1px solid #e0e0e0',
-                        background: 'white',
-                        display: 'flex',
-                        gap: '10px'
+                        padding: '15px', borderTop: '1px solid #e0e0e0',
+                        background: 'white', display: 'flex', gap: '10px'
                     }}>
                         <input
                             type="text"
                             value={userQuestion}
                             onChange={(e) => setUserQuestion(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && handleSubmit(e)}
-                            placeholder="Ask me anything..."
+                            placeholder="Ask me anything about tax..."
                             style={{
-                                flex: 1,
-                                padding: '12px',
-                                border: '1px solid #e0e0e0',
-                                borderRadius: '10px',
-                                fontSize: '14px',
-                                outline: 'none'
+                                flex: 1, padding: '12px', border: '1px solid #e0e0e0',
+                                borderRadius: '10px', fontSize: '14px', outline: 'none',
+                                background: '#f8f9fa'
                             }}
                             disabled={loading}
                         />
@@ -246,13 +344,11 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
                             disabled={loading || !userQuestion.trim()}
                             style={{
                                 padding: '12px 20px',
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                border: 'none',
-                                borderRadius: '10px',
-                                color: 'white',
-                                cursor: loading ? 'not-allowed' : 'pointer',
-                                fontSize: '16px',
-                                opacity: loading || !userQuestion.trim() ? 0.5 : 1
+                                background: 'linear-gradient(135deg, #1a237e 0%, #0d47a1 100%)',
+                                border: 'none', borderRadius: '10px', color: 'white',
+                                cursor: loading ? 'not-allowed' : 'pointer', fontSize: '16px',
+                                opacity: loading || !userQuestion.trim() ? 0.5 : 1,
+                                transition: 'opacity 0.2s'
                             }}
                         >
                             ➤
@@ -264,7 +360,21 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
             <style>{`
                 @keyframes bounce {
                     0%, 100% { transform: translateY(0); }
-                    50% { transform: translateY(-10px); }
+                    50% { transform: translateY(-5px); }
+                }
+                /* Custom scrollbar for webkit */
+                div::-webkit-scrollbar {
+                    width: 6px;
+                }
+                div::-webkit-scrollbar-track {
+                    background: #f1f1f1; 
+                }
+                div::-webkit-scrollbar-thumb {
+                    background: #c1c1c1; 
+                    border-radius: 3px;
+                }
+                div::-webkit-scrollbar-thumb:hover {
+                    background: #a8a8a8; 
                 }
             `}</style>
         </div>

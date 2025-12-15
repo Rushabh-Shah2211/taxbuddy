@@ -1,11 +1,11 @@
 // server/controllers/taxController.js
 const TaxRecord = require('../models/TaxRecord');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+// REMOVED: const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-// Initialize Gemini (Using 1.5-flash for stability)
-const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
+// ==========================================
+//   HELPER FUNCTIONS (Logic only)
+// ==========================================
 
-// --- HELPERS ---
 const calculateGratuity = (details, isGovt) => {
     if (!details || !details.received) return { taxable: 0, exempt: 0 };
     if (isGovt) return { taxable: 0, exempt: details.received };
@@ -14,9 +14,11 @@ const calculateGratuity = (details, isGovt) => {
     let exemptAmount = 0;
     const limit = 2000000;
 
-    if (coveredByAct) exemptAmount = Math.min((15 / 26) * lastDrawnSalary * yearsOfService, limit, received);
-    else exemptAmount = Math.min(0.5 * lastDrawnSalary * yearsOfService, limit, received);
-    
+    if (coveredByAct) {
+        exemptAmount = Math.min((15 / 26) * lastDrawnSalary * yearsOfService, limit, received);
+    } else {
+        exemptAmount = Math.min(0.5 * lastDrawnSalary * yearsOfService, limit, received);
+    }
     return { taxable: Math.max(0, received - exemptAmount), exempt: exemptAmount };
 };
 
@@ -80,12 +82,16 @@ const calculateSlabTax = (taxableIncome, regime, financialYear, ageGroup) => {
     return tax > 0 ? tax * 1.04 : 0;
 };
 
-// --- MAIN CONTROLLER ---
+// ==========================================
+//   MAIN CALCULATOR
+// ==========================================
+
 const calculateTax = async (req, res) => {
     try {
-        const { userId, financialYear, ageGroup, residentialStatus, income, deductions, taxesPaid, name } = req.body;
+        const { userId, financialYear, ageGroup, residentialStatus, income, deductions, taxesPaid } = req.body;
 
         let totalSalaryTaxable = 0;
+        // CREATE A COPY OF SALARY TO MODIFY
         let salaryRecord = { ...income.salary };
 
         if (income.salary?.enabled) {
@@ -103,7 +109,7 @@ const calculateTax = async (req, res) => {
                 const perqs = Number(s.perquisites?.taxableValue) || 0;
                 const otherAll = Number(s.otherAllowancesTaxable) || 0;
 
-                // 1. SAVE NUMBERS (Taxable)
+                // 1. SAVE NUMBERS (Taxable) - This stops the crash
                 salaryRecord.basic = taxableBasic;
                 salaryRecord.hra = hraCalc.taxable;
                 salaryRecord.gratuity = gratCalc.taxable;
@@ -112,7 +118,7 @@ const calculateTax = async (req, res) => {
                 salaryRecord.perquisites = perqs;
                 salaryRecord.allowances = otherAll;
 
-                // 2. SAVE RAW OBJECTS (Details)
+                // 2. SAVE RAW OBJECTS (Details) - This preserves data
                 salaryRecord.details = {
                     rentPaid: s.rentPaid, isMetro: s.isMetro,
                     gratuityInput: s.gratuity,
@@ -129,7 +135,7 @@ const calculateTax = async (req, res) => {
             }
         }
 
-        // Other Income Heads
+        // Other Income Heads (Same as before)
         let businessIncome = 0;
         if (income.business?.enabled) {
             const b = income.business;
@@ -161,21 +167,18 @@ const calculateTax = async (req, res) => {
         const recommendation = taxNew <= taxOld ? "New Regime" : "Old Regime";
         const netPayable = Math.max(0, finalTax - ((Number(taxesPaid?.tds)||0) + (Number(taxesPaid?.advanceTax)||0)));
 
+        // REMOVED AI CALL - Replaced with Static Rule-Based Tips
         let suggestions = [];
-        if (genAI) {
-            try {
-                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-                const prompt = `Indian Tax Advice. Income: ₹${grossTotalIncome}, Tax: ₹${netPayable}. Give 3 short tips.`;
-                const result = await model.generateContent(prompt);
-                suggestions = result.response.text().split('\n').filter(s => s.length > 5).slice(0, 3);
-            } catch (e) { console.log("AI Error", e.message); }
+        if (netPayable > 0) {
+            suggestions.push("Consider investing in 80C instruments (PPF, ELSS) to save up to ₹1.5L.");
+            suggestions.push("If you have parents, pay their health insurance for Section 80D benefits.");
         }
 
         if (userId) {
-            // SAVE TO DB: We use the FIXED 'salaryRecord' here
+            // SAVE TO DB using the SAFE 'salaryRecord'
             await TaxRecord.create({
                 user: userId, financialYear, ageGroup, residentialStatus,
-                income: { ...income, salary: salaryRecord }, 
+                income: { ...income, salary: salaryRecord }, // <--- THIS IS THE FIX
                 deductions, taxesPaid,
                 computedTax: { oldRegimeTax: taxOld, newRegimeTax: taxNew, taxPayable: finalTax, netTaxPayable: netPayable, regimeSelected: recommendation, suggestions },
                 grossTotalIncome
@@ -185,7 +188,7 @@ const calculateTax = async (req, res) => {
         res.json({ grossTotalIncome, oldRegime: { tax: Math.round(taxOld) }, newRegime: { tax: Math.round(taxNew) }, netPayable: Math.round(netPayable), recommendation, suggestions });
 
     } catch (error) {
-        console.error(error);
+        console.error("Calculation Error:", error);
         res.status(500).json({ message: "Calculation Failed: " + error.message });
     }
 };
@@ -204,19 +207,9 @@ const deleteTaxRecord = async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
+// Dummy endpoint in case Frontend still calls it
 const aiTaxAdvisor = async (req, res) => {
-    try {
-        const { question, calculationData } = req.body;
-        if (!genAI) return res.json({ response: "AI Service Unavailable" });
-
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const context = `Context: User has Tax Payable ₹${calculationData?.netPayable || 0}. Question: ${question}. Answer in 2 sentences.`;
-        const result = await model.generateContent(context);
-        res.json({ response: result.response.text() });
-    } catch (error) {
-        console.error("AI Error:", error);
-        res.status(500).json({ response: "I am having trouble connecting. Try again." });
-    }
+    res.json({ response: "I am a local tax assistant. Please ask about 80C or Tax Regimes." });
 };
 
 module.exports = { calculateTax, getTaxHistory, deleteTaxRecord, aiTaxAdvisor };
