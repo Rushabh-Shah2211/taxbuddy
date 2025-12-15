@@ -205,6 +205,17 @@ const calculateTax = async (req, res) => {
         const recommendation = taxNew <= taxOld ? "New Regime" : "Old Regime";
         const netPayable = Math.max(0, finalTax - ((Number(taxesPaid?.tds)||0) + (Number(taxesPaid?.advanceTax)||0)));
 
+        // --- Advance Tax Schedule Logic ---
+        let advanceTaxSchedule = [];
+        if (netPayable > 10000) {
+            advanceTaxSchedule = [
+                { dueDate: "15th June", percentage: "15%", amountDue: Math.round(netPayable * 0.15) },
+                { dueDate: "15th Sept", percentage: "45%", amountDue: Math.round(netPayable * 0.45) },
+                { dueDate: "15th Dec", percentage: "75%", amountDue: Math.round(netPayable * 0.75) },
+                { dueDate: "15th Mar", percentage: "100%", amountDue: Math.round(netPayable) }
+            ];
+        }
+
         // --- NEW: Static Rule-Based Recommendations (No AI) ---
         let suggestions = [];
         if (netPayable > 0) {
@@ -225,14 +236,24 @@ const calculateTax = async (req, res) => {
             // SAVE TO DB: We use the FIXED 'salaryRecord' here
             await TaxRecord.create({
                 user: userId, financialYear, ageGroup, residentialStatus,
-                income: { ...income, salary: salaryRecord }, // <--- THIS IS THE FIX
+                income: { ...income, salary: salaryRecord }, 
                 deductions, taxesPaid,
                 computedTax: { oldRegimeTax: taxOld, newRegimeTax: taxNew, taxPayable: finalTax, netTaxPayable: netPayable, regimeSelected: recommendation, suggestions },
                 grossTotalIncome
             });
         }
 
-        res.json({ grossTotalIncome, oldRegime: { tax: Math.round(taxOld) }, newRegime: { tax: Math.round(taxNew) }, netPayable: Math.round(netPayable), recommendation, suggestions });
+        // --- FINAL FIX: FLATTENED RESPONSE ---
+        // This matches exactly what TaxCalculator.js expects (no nested objects for taxes)
+        res.json({
+            grossTotalIncome,
+            oldRegimeTax: Math.round(taxOld), // <--- FLATTENED (Was oldRegime.tax)
+            newRegimeTax: Math.round(taxNew), // <--- FLATTENED (Was newRegime.tax)
+            netPayable: Math.round(netPayable),
+            recommendation,
+            suggestions,
+            advanceTaxSchedule
+        });
 
     } catch (error) {
         console.error("Calculation Error:", error);
