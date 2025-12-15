@@ -5,7 +5,7 @@ const taxRecordSchema = mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'User' },
     
     // Page 1: Basic Info
-    financialYear: { type: String, default: "2024-2025" },
+    financialYear: { type: String, default: "2025-2026" },
     ageGroup: { type: String, enum: ['<60', '60-80', '>80'], default: '<60' },
     residentialStatus: { type: String, enum: ['Resident', 'NRI'], default: 'Resident' },
 
@@ -13,21 +13,28 @@ const taxRecordSchema = mongoose.Schema({
         // Page 2: Salary
         salary: {
             enabled: { type: Boolean, default: false },
+            detailedMode: { type: Boolean, default: false },
+            
+            // These fields will now store ONLY the TAXABLE (Computed) Amount
             basic: { type: Number, default: 0 },
             hra: { type: Number, default: 0 },
             gratuity: { type: Number, default: 0 },
+            leaveEncashment: { type: Number, default: 0 },
             pension: { type: Number, default: 0 },
-            prevSalary: { type: Number, default: 0 },
-            allowances: { type: Number, default: 0 }
+            perquisites: { type: Number, default: 0 },
+            allowances: { type: Number, default: 0 },
+            
+            // [NEW FIELD] Stores the raw complex inputs (for editing)
+            details: { type: Object, default: {} } 
         },
         // Page 3: Business
         business: {
             enabled: { type: Boolean, default: false },
             turnover: { type: Number, default: 0 },
             profit: { type: Number, default: 0 },
-            is44AD: { type: Boolean, default: false }, // Presumptive
-            is44ADA: { type: Boolean, default: false }, // Professional
-            presumptiveRate: { type: Number, default: 6 } // % Rate input
+            is44AD: { type: Boolean, default: false },
+            is44ADA: { type: Boolean, default: false },
+            presumptiveRate: { type: Number, default: 6 }
         },
         // Page 4: House Property
         houseProperty: {
@@ -45,14 +52,7 @@ const taxRecordSchema = mongoose.Schema({
                 amount: Number,
                 expenses: Number
             }]
-        },
-        // Page 6: Capital Gains (Coming Soon)
-        capitalGains: { enabled: { type: Boolean, default: false } }
-    },
-
-    // Page 7: Deductions (Coming Soon - placeholder)
-    deductions: {
-        enabled: { type: Boolean, default: false }
+        }
     },
 
     // Page 8: Taxes Paid
@@ -67,9 +67,11 @@ const taxRecordSchema = mongoose.Schema({
         oldRegimeTax: Number,
         newRegimeTax: Number,
         taxPayable: Number,
+        netTaxPayable: Number,
         regimeSelected: String,
-        netTaxPayable: Number // After TDS/Advance Tax
-    }
+        suggestions: [String] // AI Suggestions
+    },
+    grossTotalIncome: Number
 }, { timestamps: true });
 
 module.exports = mongoose.model('TaxRecord', taxRecordSchema);
