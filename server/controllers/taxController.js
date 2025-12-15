@@ -1,9 +1,10 @@
 // server/controllers/taxController.js
 const TaxRecord = require('../models/TaxRecord');
-// REMOVED: const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+// NOTE: AI Import Removed to prevent errors
 
 // ==========================================
-//   HELPER FUNCTIONS (Logic only)
+//   HELPER FUNCTIONS (Pure Logic)
 // ==========================================
 
 const calculateGratuity = (details, isGovt) => {
@@ -14,11 +15,9 @@ const calculateGratuity = (details, isGovt) => {
     let exemptAmount = 0;
     const limit = 2000000;
 
-    if (coveredByAct) {
-        exemptAmount = Math.min((15 / 26) * lastDrawnSalary * yearsOfService, limit, received);
-    } else {
-        exemptAmount = Math.min(0.5 * lastDrawnSalary * yearsOfService, limit, received);
-    }
+    if (coveredByAct) exemptAmount = Math.min((15 / 26) * lastDrawnSalary * yearsOfService, limit, received);
+    else exemptAmount = Math.min(0.5 * lastDrawnSalary * yearsOfService, limit, received);
+    
     return { taxable: Math.max(0, received - exemptAmount), exempt: exemptAmount };
 };
 
@@ -135,7 +134,7 @@ const calculateTax = async (req, res) => {
             }
         }
 
-        // Other Income Heads (Same as before)
+        // Other Income Heads
         let businessIncome = 0;
         if (income.business?.enabled) {
             const b = income.business;
@@ -167,15 +166,24 @@ const calculateTax = async (req, res) => {
         const recommendation = taxNew <= taxOld ? "New Regime" : "Old Regime";
         const netPayable = Math.max(0, finalTax - ((Number(taxesPaid?.tds)||0) + (Number(taxesPaid?.advanceTax)||0)));
 
-        // REMOVED AI CALL - Replaced with Static Rule-Based Tips
+        // --- NEW: Static Rule-Based Recommendations (No AI) ---
         let suggestions = [];
         if (netPayable > 0) {
-            suggestions.push("Consider investing in 80C instruments (PPF, ELSS) to save up to ₹1.5L.");
-            suggestions.push("If you have parents, pay their health insurance for Section 80D benefits.");
+            if (recommendation === "Old Regime") {
+                suggestions.push("Under Old Regime, maximize your 80C limit (₹1.5L) via PPF or ELSS.");
+                suggestions.push("Claim 80D deductions for health insurance premiums.");
+            } else {
+                suggestions.push("New Regime has lower rates but fewer deductions. Ensure your income is correct.");
+            }
+            if (taxesPaid.advanceTax < netPayable * 0.9) {
+                suggestions.push("Consider paying Advance Tax to avoid Section 234B/C interest.");
+            }
+        } else {
+            suggestions.push("Great! You have no tax liability.");
         }
 
         if (userId) {
-            // SAVE TO DB using the SAFE 'salaryRecord'
+            // SAVE TO DB: We use the FIXED 'salaryRecord' here
             await TaxRecord.create({
                 user: userId, financialYear, ageGroup, residentialStatus,
                 income: { ...income, salary: salaryRecord }, // <--- THIS IS THE FIX
@@ -207,9 +215,10 @@ const deleteTaxRecord = async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
-// Dummy endpoint in case Frontend still calls it
+// --- NEW: Local Rule-Based Bot (No AI) ---
 const aiTaxAdvisor = async (req, res) => {
-    res.json({ response: "I am a local tax assistant. Please ask about 80C or Tax Regimes." });
+    // Just returns a static success so frontend doesn't break
+    res.json({ response: "I am ready to help with basic tax queries." });
 };
 
 module.exports = { calculateTax, getTaxHistory, deleteTaxRecord, aiTaxAdvisor };

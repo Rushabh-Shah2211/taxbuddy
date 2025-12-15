@@ -68,9 +68,30 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
         ]
     };
 
+    // Feature: Log unanswered or failed questions for future training
+    const logUnansweredQuestion = async (question, errorType) => {
+        try {
+            console.log(`[Missed Query Logged]: ${question} (Reason: ${errorType})`);
+            // In a real app, send this to your backend
+            await fetch('https://taxbuddy-o5wu.onrender.com/api/tax/log-unanswered', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    question,
+                    errorType,
+                    timestamp: new Date().toISOString(),
+                    userContext: userProfile // Optional: helps debug specific user issues
+                })
+            });
+        } catch (err) {
+            // Fail silently so user UX isn't affected
+            console.warn("Failed to log unanswered question to server");
+        }
+    };
+
     const askAI = async (question) => {
         setLoading(true);
-        setActiveCategory(null); // Reset category view on ask
+        setActiveCategory(null); // Close category menu on ask
         const newChat = [...chatHistory, { role: 'user', text: question }];
         setChatHistory(newChat);
         setUserQuestion('');
@@ -88,11 +109,21 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
             });
 
             const data = await response.json();
+
+            // Detect vague/fallback answers to log them
+            const fallbackPhrases = ["I'm not sure", "I cannot answer", "consult a professional", "I don't know"];
+            const isFallback = fallbackPhrases.some(phrase => data.response.toLowerCase().includes(phrase.toLowerCase()));
+
+            if (!response.ok || isFallback) {
+                logUnansweredQuestion(question, isFallback ? "Low Confidence" : "API Error");
+            }
+
             setChatHistory([...newChat, { role: 'assistant', text: data.response }]);
         } catch (error) {
+            logUnansweredQuestion(question, "Network/Server Exception");
             setChatHistory([...newChat, { 
                 role: 'assistant', 
-                text: 'Sorry, I encountered an error connecting to the server. Please try again.' 
+                text: 'Sorry, I encountered an error connecting to the server. Please try again later.' 
             }]);
         }
         setLoading(false);
@@ -103,13 +134,10 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
         if (userQuestion.trim()) askAI(userQuestion);
     };
 
-    // Helper to format bot responses (Bold, Line breaks, Bullets)
+    // Helper to format bot responses (Bold, Line breaks)
     const formatMessage = (text) => {
         if (!text) return null;
-        
-        // Split by newlines first
         return text.split('\n').map((line, i) => {
-            // Check for bold syntax **text**
             const parts = line.split(/(\*\*.*?\*\*)/g);
             return (
                 <div key={i} style={{ minHeight: line.trim() === '' ? '10px' : 'auto' }}>
@@ -126,7 +154,7 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
 
     return (
         <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 1000 }}>
-            {/* Floating Action Button */}
+            {/* Floating Trigger Button */}
             {!showChat && (
                 <button
                     onClick={() => setShowChat(true)}
@@ -135,17 +163,10 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
                         background: 'linear-gradient(135deg, #1a237e 0%, #0d47a1 100%)',
                         border: 'none', color: 'white', fontSize: '28px',
                         cursor: 'pointer', boxShadow: '0 4px 15px rgba(13, 71, 161, 0.4)',
-                        transition: 'transform 0.2s, box-shadow 0.2s',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        transition: 'transform 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center'
                     }}
-                    onMouseOver={(e) => {
-                        e.currentTarget.style.transform = 'scale(1.1)';
-                        e.currentTarget.style.boxShadow = '0 6px 20px rgba(13, 71, 161, 0.6)';
-                    }}
-                    onMouseOut={(e) => {
-                        e.currentTarget.style.transform = 'scale(1)';
-                        e.currentTarget.style.boxShadow = '0 4px 15px rgba(13, 71, 161, 0.4)';
-                    }}
+                    onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                    onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
                 >
                     🤖
                 </button>
@@ -189,13 +210,13 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
                         flex: 1, overflowY: 'auto', padding: '20px',
                         background: '#f4f6f8', display: 'flex', flexDirection: 'column'
                     }}>
-                        {/* Welcome State */}
+                        {/* Welcome / Main Menu State */}
                         {chatHistory.length === 0 && !activeCategory && (
                             <div style={{ textAlign: 'center', marginTop: '10px' }}>
                                 <div style={{ fontSize: '40px', marginBottom: '10px' }}>👋</div>
                                 <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>How can I help you today?</h4>
                                 <p style={{ color: '#666', fontSize: '13px', marginBottom: '20px' }}>
-                                    Select a topic below to see common questions:
+                                    Select a topic below:
                                 </p>
                                 
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
@@ -204,24 +225,10 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
                                             key={i}
                                             onClick={() => setActiveCategory(category)}
                                             style={{
-                                                padding: '8px 12px',
-                                                background: 'white',
-                                                border: '1px solid #dae1e7',
-                                                borderRadius: '20px',
-                                                cursor: 'pointer',
-                                                fontSize: '12px',
-                                                color: '#1a237e',
-                                                fontWeight: '500',
-                                                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                                                transition: 'all 0.2s'
-                                            }}
-                                            onMouseOver={(e) => {
-                                                e.currentTarget.style.background = '#e8eaf6';
-                                                e.currentTarget.style.transform = 'translateY(-1px)';
-                                            }}
-                                            onMouseOut={(e) => {
-                                                e.currentTarget.style.background = 'white';
-                                                e.currentTarget.style.transform = 'translateY(0)';
+                                                padding: '8px 12px', background: 'white',
+                                                border: '1px solid #dae1e7', borderRadius: '20px',
+                                                cursor: 'pointer', fontSize: '12px', color: '#1a237e',
+                                                fontWeight: '500', boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
                                             }}
                                         >
                                             {category}
@@ -231,19 +238,22 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
                             </div>
                         )}
 
-                        {/* Category Questions View */}
+                        {/* Sub-Category Question List State */}
                         {chatHistory.length === 0 && activeCategory && (
-                            <div style={{ marginTop: '10px' }}>
+                            <div style={{ marginTop: '5px' }}>
+                                {/* GO BACK BUTTON */}
                                 <button 
                                     onClick={() => setActiveCategory(null)}
                                     style={{
-                                        background: 'none', border: 'none', color: '#666',
-                                        fontSize: '13px', cursor: 'pointer', marginBottom: '15px',
-                                        display: 'flex', alignItems: 'center'
+                                        background: 'none', border: 'none', color: '#0d47a1',
+                                        fontSize: '14px', cursor: 'pointer', marginBottom: '15px',
+                                        display: 'flex', alignItems: 'center', fontWeight: '500',
+                                        padding: '5px 0'
                                     }}
                                 >
-                                    ← Back to topics
+                                    ← Back to Topics
                                 </button>
+
                                 <h4 style={{ margin: '0 0 15px 0', color: '#1a237e' }}>{activeCategory}</h4>
                                 <div style={{ display: 'grid', gap: '10px' }}>
                                     {questionCategories[activeCategory].map((q, i) => (
@@ -296,7 +306,7 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
                             </div>
                         ))}
 
-                        {/* Loading Indicator */}
+                        {/* Loading State */}
                         {loading && (
                             <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '15px' }}>
                                 <div style={{
@@ -314,14 +324,7 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
                         <div ref={chatEndRef} />
                     </div>
 
-                    {/* Disclaimer Footer */}
-                    <div style={{ padding: '8px 20px', background: '#f8f9fa', borderTop: '1px solid #eee' }}>
-                        <p style={{ margin: 0, fontSize: '10px', color: '#999', textAlign: 'center' }}>
-                            AI-generated responses. Please verify with a tax professional.
-                        </p>
-                    </div>
-
-                    {/* Input Area */}
+                    {/* Footer Input */}
                     <div style={{
                         padding: '15px', borderTop: '1px solid #e0e0e0',
                         background: 'white', display: 'flex', gap: '10px'
@@ -331,7 +334,7 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
                             value={userQuestion}
                             onChange={(e) => setUserQuestion(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && handleSubmit(e)}
-                            placeholder="Ask me anything about tax..."
+                            placeholder="Ask me anything..."
                             style={{
                                 flex: 1, padding: '12px', border: '1px solid #e0e0e0',
                                 borderRadius: '10px', fontSize: '14px', outline: 'none',
@@ -347,8 +350,7 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
                                 background: 'linear-gradient(135deg, #1a237e 0%, #0d47a1 100%)',
                                 border: 'none', borderRadius: '10px', color: 'white',
                                 cursor: loading ? 'not-allowed' : 'pointer', fontSize: '16px',
-                                opacity: loading || !userQuestion.trim() ? 0.5 : 1,
-                                transition: 'opacity 0.2s'
+                                opacity: loading || !userQuestion.trim() ? 0.5 : 1
                             }}
                         >
                             ➤
@@ -362,20 +364,10 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
                     0%, 100% { transform: translateY(0); }
                     50% { transform: translateY(-5px); }
                 }
-                /* Custom scrollbar for webkit */
-                div::-webkit-scrollbar {
-                    width: 6px;
-                }
-                div::-webkit-scrollbar-track {
-                    background: #f1f1f1; 
-                }
-                div::-webkit-scrollbar-thumb {
-                    background: #c1c1c1; 
-                    border-radius: 3px;
-                }
-                div::-webkit-scrollbar-thumb:hover {
-                    background: #a8a8a8; 
-                }
+                div::-webkit-scrollbar { width: 6px; }
+                div::-webkit-scrollbar-track { background: #f1f1f1; }
+                div::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+                div::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
             `}</style>
         </div>
     );

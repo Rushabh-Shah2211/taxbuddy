@@ -15,7 +15,7 @@ const taxRecordSchema = mongoose.Schema({
             enabled: { type: Boolean, default: false },
             detailedMode: { type: Boolean, default: false },
             
-            // FIX: These are NUMBERS only (The calculated taxable result)
+            // FIX: These fields store ONLY the calculated TAXABLE AMOUNT (Number)
             basic: { type: Number, default: 0 },
             hra: { type: Number, default: 0 },
             gratuity: { type: Number, default: 0 },
@@ -24,7 +24,7 @@ const taxRecordSchema = mongoose.Schema({
             perquisites: { type: Number, default: 0 },
             allowances: { type: Number, default: 0 },
             
-            // FIX: This OBJECT stores the raw inputs (received, years, etc.)
+            // FIX: This NEW field stores the raw complex inputs (so no crash)
             details: { type: Object, default: {} } 
         },
         // Page 3: Business
