@@ -1,12 +1,11 @@
-// server/controllers/taxController.js
 const TaxRecord = require('../models/TaxRecord');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-// Initialize Gemini
+// Initialize Gemini (using the stable model to fix connection error)
 const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
 // ==========================================
-//   HELPER FUNCTIONS (Logic only)
+//   HELPER FUNCTIONS
 // ==========================================
 
 const calculateGratuity = (details, isGovt) => {
@@ -78,26 +77,25 @@ const calculateSlabTax = (taxableIncome, regime, financialYear, ageGroup) => {
         let limit = ageGroup === '>80' ? 500000 : (ageGroup === '60-80' ? 300000 : 250000);
         if (income > 1000000) {
             tax += (income - 1000000) * 0.30 + 112500; 
-            if(ageGroup === '60-80') tax -= 2500; // Adjust for slab diff
+            if(ageGroup === '60-80') tax -= 2500;
             if(ageGroup === '>80') tax -= 12500;
         } else if (income > 500000) {
             tax += (income - 500000) * 0.20 + (500000 - limit) * 0.05;
         } else if (income > limit) {
             tax += (income - limit) * 0.05;
         }
-        if (income <= 500000) tax = 0; // Rebate 87A
+        if (income <= 500000) tax = 0; 
     } else {
-        // New Regime FY 25-26
-        if (income > 2400000) tax += (income - 2400000) * 0.30 + 300000; // pre-calc lower slabs
+        if (income > 2400000) tax += (income - 2400000) * 0.30 + 300000;
         else if (income > 2000000) tax += (income - 2000000) * 0.25 + 200000;
         else if (income > 1600000) tax += (income - 1600000) * 0.20 + 120000;
         else if (income > 1200000) tax += (income - 1200000) * 0.15 + 60000;
         else if (income > 800000) tax += (income - 800000) * 0.10 + 20000;
         else if (income > 400000) tax += (income - 400000) * 0.05;
         
-        if (income <= 1200000) tax = 0; // Rebate 87A for New Regime
+        if (income <= 1200000) tax = 0; 
     }
-    return tax > 0 ? tax * 1.04 : 0; // Cess
+    return tax > 0 ? tax * 1.04 : 0;
 };
 
 // ==========================================
@@ -110,16 +108,17 @@ const calculateTax = async (req, res) => {
 
         let totalSalaryTaxable = 0;
         let salaryExemptions = {};
+        
+        // **IMPORTANT:** Create a copy of the salary object to modify safely
         let salaryRecord = { ...income.salary };
 
-        // --- 1. SALARY LOGIC ---
         if (income.salary?.enabled) {
             const s = income.salary;
             const isGovt = s.employmentType === 'Government';
-            let stdDed = 75000; // FY 25-26 Standard Deduction
+            let stdDed = 75000;
 
             if (s.detailedMode) {
-                // DETAILED MODE: Calculate Exemptions
+                // DETAILED MODE: We must convert Objects to Numbers here
                 let taxableBasic = (Number(s.basic)||0) + (Number(s.da)||0) + (Number(s.bonus)||0);
                 
                 const hraCalc = calculateHRA(s.basic, s.hra, s.rentPaid, s.isMetro);
@@ -129,7 +128,7 @@ const calculateTax = async (req, res) => {
                 const perqs = Number(s.perquisites?.taxableValue) || 0;
                 const otherAll = Number(s.otherAllowancesTaxable) || 0;
 
-                // Set Taxable values for Main DB Fields
+                // 1. Set the MAIN fields to be Numbers (Fixes the Error)
                 salaryRecord.basic = taxableBasic;
                 salaryRecord.hra = hraCalc.taxable;
                 salaryRecord.gratuity = gratCalc.taxable;
@@ -138,7 +137,7 @@ const calculateTax = async (req, res) => {
                 salaryRecord.perquisites = perqs;
                 salaryRecord.allowances = otherAll;
 
-                // Move RAW inputs to 'details' object to prevent DB crash
+                // 2. Move the RAW Objects to 'details' (Saved for editing)
                 salaryRecord.details = {
                     rentPaid: s.rentPaid, isMetro: s.isMetro,
                     gratuityInput: s.gratuity,
@@ -159,7 +158,6 @@ const calculateTax = async (req, res) => {
             }
         }
 
-        // --- 2. OTHER HEADS ---
         let businessIncome = 0;
         if (income.business?.enabled) {
             const b = income.business;
@@ -182,27 +180,24 @@ const calculateTax = async (req, res) => {
         }
 
         const grossTotalIncome = totalSalaryTaxable + businessIncome + hpIncome + otherSrcIncome;
-
-        // --- 3. TAX CALCULATION ---
         const totalDeductions = Math.min((Number(deductions?.section80C)||0), 150000) + (Number(deductions?.section80D)||0);
         
         const netTaxableOld = Math.max(0, grossTotalIncome - totalDeductions);
-        const netTaxableNew = Math.max(0, grossTotalIncome); // No deductions in New Regime usually
+        const netTaxableNew = Math.max(0, grossTotalIncome);
 
         let taxOld = calculateSlabTax(netTaxableOld, 'Old', financialYear, ageGroup);
         let taxNew = calculateSlabTax(netTaxableNew, 'New', financialYear, ageGroup);
         
         const finalTax = Math.min(taxOld, taxNew);
         const recommendation = taxNew <= taxOld ? "New Regime" : "Old Regime";
-        
         const totalPaid = (Number(taxesPaid?.tds)||0) + (Number(taxesPaid?.advanceTax)||0);
         const netPayable = Math.max(0, finalTax - totalPaid);
 
-        // --- 4. AI SUGGESTIONS ---
         let suggestions = [];
         if (genAI) {
             try {
-                const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+                // Use STABLE model to avoid connection errors
+                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
                 const prompt = `Act as an Indian CA. User: ${name}, Income: ${grossTotalIncome}. Tax: ${netPayable}. Give 3 one-sentence tax saving tips.`;
                 const result = await model.generateContent(prompt);
                 const text = result.response.text();
@@ -210,14 +205,15 @@ const calculateTax = async (req, res) => {
             } catch (e) { console.log("AI Error", e.message); }
         }
 
-        // --- 5. SAVE TO DB ---
+        // SAVE TO DB
         if (userId) {
-            // Reconstruct the income object with sanitized salary record
+            // Reconstruct the income object with our FIXED salaryRecord (where numbers are numbers)
             const incomeForDB = { ...income, salary: salaryRecord };
             
             await TaxRecord.create({
                 user: userId, financialYear, ageGroup, residentialStatus,
-                income: incomeForDB, deductions, taxesPaid,
+                income: incomeForDB, // <--- Using the sanitized object
+                deductions, taxesPaid,
                 computedTax: { oldRegimeTax: taxOld, newRegimeTax: taxNew, taxPayable: finalTax, netTaxPayable: netPayable, regimeSelected: recommendation, suggestions },
                 grossTotalIncome
             });
@@ -257,7 +253,8 @@ const aiTaxAdvisor = async (req, res) => {
         const { question, calculationData } = req.body;
         if (!genAI) return res.json({ response: "AI Service Unavailable" });
 
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        // Use STABLE model
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         const context = `You are a helpful Indian Tax Assistant. 
         Context: The user has a Net Tax Payable of ₹${calculationData?.netPayable || 0}.
         Question: ${question}

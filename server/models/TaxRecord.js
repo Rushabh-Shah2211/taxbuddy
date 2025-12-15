@@ -16,6 +16,7 @@ const taxRecordSchema = mongoose.Schema({
             detailedMode: { type: Boolean, default: false },
             
             // These fields will now store ONLY the TAXABLE (Computed) Amount
+            // This prevents the "Cast to Number failed" error
             basic: { type: Number, default: 0 },
             hra: { type: Number, default: 0 },
             gratuity: { type: Number, default: 0 },
@@ -24,7 +25,7 @@ const taxRecordSchema = mongoose.Schema({
             perquisites: { type: Number, default: 0 },
             allowances: { type: Number, default: 0 },
             
-            // [NEW FIELD] Stores the raw complex inputs (for editing)
+            // [NEW FIELD] Stores the raw complex inputs (for editing later)
             details: { type: Object, default: {} } 
         },
         // Page 3: Business
@@ -69,7 +70,7 @@ const taxRecordSchema = mongoose.Schema({
         taxPayable: Number,
         netTaxPayable: Number,
         regimeSelected: String,
-        suggestions: [String] // AI Suggestions
+        suggestions: [String]
     },
     grossTotalIncome: Number
 }, { timestamps: true });
