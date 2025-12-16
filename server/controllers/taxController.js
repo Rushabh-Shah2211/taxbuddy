@@ -1,211 +1,154 @@
 // server/controllers/taxController.js
 const TaxRecord = require('../models/TaxRecord');
 
-// NOTE: AI Import Removed to prevent errors
-
-// ==========================================
-//   HELPER FUNCTIONS (Pure Logic)
-// ==========================================
-
-const calculateGratuity = (details, isGovt) => {
-    if (!details || !details.received) return { taxable: 0, exempt: 0 };
-    if (isGovt) return { taxable: 0, exempt: details.received };
-
-    const { received, lastDrawnSalary, yearsOfService, coveredByAct } = details;
-    let exemptAmount = 0;
-    const limit = 2000000;
-
-    if (coveredByAct) exemptAmount = Math.min((15 / 26) * lastDrawnSalary * yearsOfService, limit, received);
-    else exemptAmount = Math.min(0.5 * lastDrawnSalary * yearsOfService, limit, received);
-    
-    return { taxable: Math.max(0, received - exemptAmount), exempt: exemptAmount };
-};
-
-const calculateLeaveEncashment = (details, isGovt) => {
-    if (!details || !details.received) return { taxable: 0, exempt: 0 };
-    if (isGovt) return { taxable: 0, exempt: details.received };
-
-    const { received, avgSalary10Months, earnedLeaveBalance } = details;
-    const limit = 2500000;
-    const exemptAmount = Math.min(received, limit, avgSalary10Months * earnedLeaveBalance, 10 * avgSalary10Months);
-    
-    return { taxable: Math.max(0, received - exemptAmount), exempt: exemptAmount };
-};
-
-const calculatePension = (details, isGovt) => {
-    if (!details) return { taxable: 0, exempt: 0 };
-    let taxable = Number(details.uncommuted) || 0;
-    
-    if (details.commutedReceived) {
-        let exemptCommuted = 0;
-        if (isGovt) exemptCommuted = details.commutedReceived;
-        else {
-            const totalCorpus = details.commutedReceived / (details.commutationPercentage / 100);
-            exemptCommuted = Math.min(details.hasGratuity ? (totalCorpus / 3) : (totalCorpus / 2), details.commutedReceived);
-        }
-        taxable += (details.commutedReceived - exemptCommuted);
-    }
-    return { taxable, exempt: (Number(details.commutedReceived)||0) - (taxable - (Number(details.uncommuted)||0)) };
-};
-
-const calculateHRA = (basic, hraReceived, rentPaid, isMetro) => {
-    if (!hraReceived || !rentPaid) return { taxable: hraReceived || 0, exempt: 0 };
-    const rentOver10 = rentPaid - (0.10 * basic);
-    if (rentOver10 <= 0) return { taxable: hraReceived, exempt: 0 };
-    const exemptAmount = Math.min(hraReceived, rentOver10, isMetro ? 0.50 * basic : 0.40 * basic);
-    return { taxable: Math.max(0, hraReceived - exemptAmount), exempt: exemptAmount };
-};
-
-const calculateSlabTax = (taxableIncome, regime, financialYear, ageGroup) => {
+// --- HELPER: Slab Calculation ---
+const calculateSlabTax = (taxableIncome, regime, ageGroup) => {
     let tax = 0;
-    let income = Math.max(0, Number(taxableIncome));
+    let income = Math.max(0, Number(taxableIncome) || 0);
 
     if (regime === 'Old') {
         let limit = ageGroup === '>80' ? 500000 : (ageGroup === '60-80' ? 300000 : 250000);
-        if (income > 1000000) {
-            tax += (income - 1000000) * 0.30 + 112500;
-            if(ageGroup === '60-80') tax -= 2500;
-            if(ageGroup === '>80') tax -= 12500;
-        } else if (income > 500000) tax += (income - 500000) * 0.20 + (500000 - limit) * 0.05;
+        if (income > 1000000) tax += 112500 + (income - 1000000) * 0.30;
+        else if (income > 500000) tax += 12500 + (income - 500000) * 0.20;
         else if (income > limit) tax += (income - limit) * 0.05;
-        if (income <= 500000) tax = 0; 
+        
+        // Slab adjustments for seniors
+        if(ageGroup === '60-80' && income > 1000000) tax -= 2500; 
+        if(ageGroup === '>80' && income > 1000000) tax -= 12500;
+        
+        if (income <= 500000) tax = 0; // Rebate 87A
     } else {
-        if (income > 2400000) tax += (income - 2400000) * 0.30 + 300000;
-        else if (income > 2000000) tax += (income - 2000000) * 0.25 + 200000;
-        else if (income > 1600000) tax += (income - 1600000) * 0.20 + 120000;
-        else if (income > 1200000) tax += (income - 1200000) * 0.15 + 60000;
-        else if (income > 800000) tax += (income - 800000) * 0.10 + 20000;
+        // New Regime FY 25-26
+        if (income > 2400000) tax += 300000 + (income - 2400000) * 0.30;
+        else if (income > 2000000) tax += 200000 + (income - 2000000) * 0.25;
+        else if (income > 1600000) tax += 120000 + (income - 1600000) * 0.20;
+        else if (income > 1200000) tax += 60000 + (income - 1200000) * 0.15;
+        else if (income > 800000) tax += 20000 + (income - 800000) * 0.10;
         else if (income > 400000) tax += (income - 400000) * 0.05;
-        if (income <= 1200000) tax = 0;
+        
+        if (income <= 1200000) tax = 0; // Rebate 87A
     }
-    return tax > 0 ? tax * 1.04 : 0;
+    return tax > 0 ? tax * 1.04 : 0; // Add Cess
 };
 
-// ==========================================
-//   MAIN CALCULATOR
-// ==========================================
+// --- HELPER: Capital Gains Tax ---
+const calculateCGTax = (cg) => {
+    if (!cg || !cg.enabled) return 0;
+    let tax = 0;
+    
+    // 1. STCG 111A (Shares): Flat 20%
+    const stcgShares = Number(cg.shares?.stcg111a) || 0;
+    if (stcgShares > 0) tax += stcgShares * 0.20;
+    
+    // 2. LTCG 112A (Shares): 12.5% above 1.25 Lakhs
+    const ltcgShares = Number(cg.shares?.ltcg112a) || 0;
+    if (ltcgShares > 125000) {
+        tax += (ltcgShares - 125000) * 0.125;
+    }
 
+    // 3. Property LTCG: 12.5%
+    const ltcgProp = Number(cg.property?.ltcg) || 0;
+    if (ltcgProp > 0) tax += ltcgProp * 0.125;
+
+    return tax * 1.04; // Add Cess
+};
+
+// --- MAIN CONTROLLER ---
 const calculateTax = async (req, res) => {
     try {
         const { userId, financialYear, ageGroup, residentialStatus, income, deductions, taxesPaid } = req.body;
 
+        // 1. SALARY
         let totalSalaryTaxable = 0;
-        // CREATE A COPY OF SALARY TO MODIFY
-        let salaryRecord = { ...income.salary };
-
-        if (income.salary?.enabled) {
-            const s = income.salary;
-            const isGovt = s.employmentType === 'Government';
-            let stdDed = 75000;
-
-            // Always extract/compute taxable values, regardless of detailedMode
-            // This handles both simple (numbers) and detailed (objects) inputs
-            let taxableBasic = (Number(s.basic) || 0) + (Number(s.da) || 0) + (Number(s.bonus) || 0);
-            let hraTaxable = Number(s.hra) || 0;
-            let gratTaxable = 0;
-            let leaveTaxable = 0;
-            let pensionTaxable = 0;
-            let perqs = Number(s.perquisites?.taxableValue) || 0;
-            let otherAll = Number(s.otherAllowancesTaxable) || Number(s.allowances) || 0;
-
-            // Compute HRA exemption if rent details are provided
-            if (s.rentPaid && s.hra) {
-                const hraCalc = calculateHRA(s.basic, s.hra, s.rentPaid, s.isMetro);
-                hraTaxable = hraCalc.taxable;
-            }
-
-            // Compute Gratuity if present
-            if (s.gratuity) {
-                if (typeof s.gratuity === 'object') {
-                    const gratCalc = calculateGratuity(s.gratuity, isGovt);
-                    gratTaxable = gratCalc.taxable;
-                } else {
-                    gratTaxable = Number(s.gratuity) || 0;
-                }
-            }
-
-            // Compute Leave Encashment if present
-            if (s.leaveEncashment) {
-                if (typeof s.leaveEncashment === 'object') {
-                    const leaveCalc = calculateLeaveEncashment(s.leaveEncashment, isGovt);
-                    leaveTaxable = leaveCalc.taxable;
-                } else {
-                    leaveTaxable = Number(s.leaveEncashment) || 0;
-                }
-            }
-
-            // Compute Pension if present
-            if (s.pension) {
-                if (typeof s.pension === 'object') {
-                    const pensionCalc = calculatePension(s.pension, isGovt);
-                    pensionTaxable = pensionCalc.taxable;
-                } else {
-                    pensionTaxable = Number(s.pension) || 0;
-                }
-            }
-
-            // Set taxable numbers in salaryRecord (ensures schema compliance)
-            salaryRecord.basic = taxableBasic;
-            salaryRecord.hra = hraTaxable;
-            salaryRecord.gratuity = gratTaxable;
-            salaryRecord.leaveEncashment = leaveTaxable;
-            salaryRecord.pension = pensionTaxable;
-            salaryRecord.perquisites = perqs;
-            salaryRecord.allowances = otherAll;
-
-            // Preserve raw input details for complex fields
-            salaryRecord.details = {
-                rentPaid: s.rentPaid,
-                isMetro: s.isMetro || false
-            };
-            if (s.gratuity && typeof s.gratuity === 'object') {
-                salaryRecord.details.gratuityInput = s.gratuity;
-            }
-            if (s.leaveEncashment && typeof s.leaveEncashment === 'object') {
-                salaryRecord.details.leaveInput = s.leaveEncashment;
-            }
-            if (s.pension && typeof s.pension === 'object') {
-                salaryRecord.details.pensionInput = s.pension;
-            }
-
-            // Compute gross salary from all taxable components
-            const grossSalary = taxableBasic + hraTaxable + gratTaxable + leaveTaxable + pensionTaxable + perqs + otherAll;
-            totalSalaryTaxable = Math.max(0, grossSalary - stdDed);
-        }
-
-        // Other Income Heads
-        let businessIncome = 0;
-        if (income.business?.enabled) {
-            const b = income.business;
-            businessIncome = (b.is44AD || b.is44ADA) ? (Number(b.turnover) * (Number(b.presumptiveRate)||6)/100) : Number(b.profit);
-        }
-        let hpIncome = 0;
-        if (income.houseProperty?.enabled) {
-            const h = income.houseProperty;
-            if(h.type === 'Self Occupied') hpIncome = Math.max(-200000, 0 - (Number(h.interestPaid)||0));
-            else {
-                const nav = (Number(h.rentReceived)||0) - (Number(h.municipalTaxes)||0);
-                hpIncome = nav - (nav * 0.30) - (Number(h.interestPaid)||0);
-            }
-        }
-        let otherSrcIncome = 0;
-        if (income.otherIncome?.enabled && income.otherIncome.sources) {
-            income.otherIncome.sources.forEach(src => otherSrcIncome += (Number(src.amount)||0));
-        }
-
-        const grossTotalIncome = totalSalaryTaxable + businessIncome + hpIncome + otherSrcIncome;
-        const totalDeductions = Math.min((Number(deductions?.section80C)||0), 150000) + (Number(deductions?.section80D)||0);
+        let salaryRecord = { ...income.salary }; // Create copy
         
-        const netTaxableOld = Math.max(0, grossTotalIncome - totalDeductions);
-        const netTaxableNew = Math.max(0, grossTotalIncome);
+        if (income.salary?.enabled) {
+             let stdDed = 75000;
+             // Ensure all inputs are numbers or 0
+             let basic = (Number(salaryRecord.basic)||0) + (Number(salaryRecord.hra)||0) + (Number(salaryRecord.allowances)||0);
+             totalSalaryTaxable = Math.max(0, basic - stdDed); 
+        }
 
-        let taxOld = calculateSlabTax(netTaxableOld, 'Old', financialYear, ageGroup);
-        let taxNew = calculateSlabTax(netTaxableNew, 'New', financialYear, ageGroup);
+        // 2. BUSINESS (Multiple)
+        let businessIncome = 0;
+        if (income.business?.enabled && income.business.businesses) {
+            income.business.businesses.forEach(biz => {
+                if (biz.type === "Presumptive") {
+                    const turnover = Number(biz.turnover) || 0;
+                    const rate = Number(biz.presumptiveRate) || 6;
+                    businessIncome += (turnover * rate / 100);
+                } else {
+                    const profit = Number(biz.profit) || 0;
+                    businessIncome += profit;
+                }
+            });
+        }
+
+        // 3. HOUSE PROPERTY
+        let hpIncome = 0;
+        if(income.houseProperty?.enabled) {
+             const h = income.houseProperty;
+             const rent = Number(h.rentReceived) || 0;
+             const taxes = Number(h.municipalTaxes) || 0;
+             const interest = Number(h.interestPaid) || 0;
+
+             if(h.type === 'Rented') {
+                 // NAV Calculation: (Rent - Municipal Taxes) - 30% Std Ded - Interest
+                 const nav = rent - taxes;
+                 hpIncome = (nav * 0.7) - interest; 
+             } else {
+                 // Self Occupied: Max Loss 2 Lakhs
+                 hpIncome = Math.max(-200000, 0 - interest);
+             }
+        }
+
+        // 4. OTHER INCOME
+        let otherSrcIncome = 0;
+        if(income.otherIncome?.sources) {
+            income.otherIncome.sources.forEach(s => {
+                otherSrcIncome += (Number(s.amount) || 0);
+            });
+        }
+
+        // 5. CAPITAL GAINS (Slab Components only)
+        // Note: Special rate taxes are added directly to the final tax later
+        let cgSlabIncome = 0; 
+        if (income.capitalGains?.enabled) {
+            cgSlabIncome += (Number(income.capitalGains.property?.stcg) || 0);
+            cgSlabIncome += (Number(income.capitalGains.other) || 0);
+        }
+        
+        // 6. GROSS TOTAL INCOME (The Sum)
+        const grossTotalIncome = totalSalaryTaxable + businessIncome + hpIncome + otherSrcIncome + cgSlabIncome;
+
+        // 7. DEDUCTIONS
+        let totalDeductions = 0;
+        if (deductions?.enabled) {
+            const d = deductions;
+            const val80C = Math.min(Number(d.section80C)||0, 150000);
+            totalDeductions = val80C + (Number(d.section80D)||0) + (Number(d.section80E)||0) + (Number(d.section80G)||0) + (Number(d.section80TTA)||0) + (Number(d.otherDeductions)||0);
+        }
+
+        // 8. TAX CALCULATION
+        const netTaxableOld = Math.max(0, grossTotalIncome - totalDeductions);
+        const netTaxableNew = Math.max(0, grossTotalIncome); 
+
+        let taxOld = calculateSlabTax(netTaxableOld, 'Old', ageGroup);
+        let taxNew = calculateSlabTax(netTaxableNew, 'New', ageGroup);
+
+        // Add Special CG Tax (Calculated separately)
+        const cgTax = calculateCGTax(income.capitalGains);
+        taxOld += cgTax;
+        taxNew += cgTax;
+
         const finalTax = Math.min(taxOld, taxNew);
         const recommendation = taxNew <= taxOld ? "New Regime" : "Old Regime";
-        const netPayable = Math.max(0, finalTax - ((Number(taxesPaid?.tds)||0) + (Number(taxesPaid?.advanceTax)||0)));
+        
+        // Calculate Paid Taxes
+        const taxesPaidTotal = (Number(taxesPaid?.tds)||0) + (Number(taxesPaid?.advanceTax)||0) + (Number(taxesPaid?.selfAssessment)||0);
+        const netPayable = Math.max(0, finalTax - taxesPaidTotal);
 
-        // --- Advance Tax Schedule Logic ---
+        // Advance Tax Schedule
         let advanceTaxSchedule = [];
         if (netPayable > 10000) {
             advanceTaxSchedule = [
@@ -216,48 +159,30 @@ const calculateTax = async (req, res) => {
             ];
         }
 
-        // --- NEW: Static Rule-Based Recommendations (No AI) ---
-        let suggestions = [];
-        if (netPayable > 0) {
-            if (recommendation === "Old Regime") {
-                suggestions.push("Under Old Regime, maximize your 80C limit (₹1.5L) via PPF or ELSS.");
-                suggestions.push("Claim 80D deductions for health insurance premiums.");
-            } else {
-                suggestions.push("New Regime has lower rates but fewer deductions. Ensure your income is correct.");
-            }
-            if (taxesPaid.advanceTax < netPayable * 0.9) {
-                suggestions.push("Consider paying Advance Tax to avoid Section 234B/C interest.");
-            }
-        } else {
-            suggestions.push("Great! You have no tax liability.");
-        }
-
+        // 9. SAVE TO DB
         if (userId) {
-            // SAVE TO DB: We use the FIXED 'salaryRecord' here
             await TaxRecord.create({
                 user: userId, financialYear, ageGroup, residentialStatus,
                 income: { ...income, salary: salaryRecord }, 
                 deductions, taxesPaid,
-                computedTax: { oldRegimeTax: taxOld, newRegimeTax: taxNew, taxPayable: finalTax, netTaxPayable: netPayable, regimeSelected: recommendation, suggestions },
+                computedTax: { oldRegimeTax: taxOld, newRegimeTax: taxNew, taxPayable: finalTax, netTaxPayable: netPayable, regimeSelected: recommendation, suggestions: [] },
                 grossTotalIncome
             });
         }
 
-        // --- FINAL FIX: FLATTENED RESPONSE ---
-        // This matches exactly what TaxCalculator.js expects (no nested objects for taxes)
         res.json({
             grossTotalIncome,
-            oldRegimeTax: Math.round(taxOld), // <--- FLATTENED (Was oldRegime.tax)
-            newRegimeTax: Math.round(taxNew), // <--- FLATTENED (Was newRegime.tax)
+            oldRegimeTax: Math.round(taxOld),
+            newRegimeTax: Math.round(taxNew),
             netPayable: Math.round(netPayable),
             recommendation,
-            suggestions,
+            suggestions: [],
             advanceTaxSchedule
         });
 
     } catch (error) {
         console.error("Calculation Error:", error);
-        res.status(500).json({ message: "Calculation Failed: " + error.message });
+        res.status(500).json({ message: "Error: " + error.message });
     }
 };
 
@@ -275,10 +200,8 @@ const deleteTaxRecord = async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
-// --- NEW: Local Rule-Based Bot (No AI) ---
 const aiTaxAdvisor = async (req, res) => {
-    // Just returns a static success so frontend doesn't break
-    res.json({ response: "I am ready to help with basic tax queries." });
+    res.json({ response: "I am a local tax assistant. Please ask about 80C or Tax Regimes." });
 };
 
 module.exports = { calculateTax, getTaxHistory, deleteTaxRecord, aiTaxAdvisor };
