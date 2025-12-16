@@ -10,7 +10,8 @@ dotenv.config();
 const connectDB = require('./config/db');
 const taxRoutes = require('./routes/taxRoutes');
 const authRoutes = require('./routes/authRoutes');
-const paymentRoutes = require('./routes/paymentRoutes'); 
+const paymentRoutes = require('./routes/paymentRoutes');
+const adminRoutes = require('./routes/adminRoutes'); 
 
 // 4. Connect to Database
 connectDB();
@@ -23,7 +24,8 @@ app.use(cors());
 // 5. Use Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tax', taxRoutes);
-app.use('/api/payment', paymentRoutes); 
+app.use('/api/payment', paymentRoutes);
+app.use('/api/admin', adminRoutes); 
 
 app.get('/', (req, res) => {
     res.send('Tax SaaS API is running...');

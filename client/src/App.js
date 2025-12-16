@@ -11,6 +11,8 @@ import Profile from './components/Profile';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import History from './components/History';
+import AdminLogin from './components/AdminLogin';
+import AdminDashboard from './components/AdminDashboard';
 
 function App() {
   return (
@@ -28,6 +30,8 @@ function App() {
           <Route path="/calculator" element={<TaxCalculator />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/admin" element={<AdminLogin />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
         </Routes>
       </div>
     </Router>
