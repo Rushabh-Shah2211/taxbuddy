@@ -81,8 +81,7 @@ const Dashboard = () => {
             <header className="dashboard-header">
                 <div className="welcome-text">
                     <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'5px'}}>
-                        <img src={logo} alt="Artha" style={{height:'30px'}}/>
-                        <span style={{fontWeight:'bold', color:'#7ed957'}}>Artha</span>
+                        <img src={logo} alt="Artha" style={{height:'60px'}}/>
                     </div>
                     <h1>{greeting}, {user?.name?.split(' ')[0]}! 👋</h1>
                     <p>Here is your financial overview.</p>
