@@ -1,5 +1,6 @@
 // server/controllers/taxController.js
 const TaxRecord = require('../models/TaxRecord');
+const sendEmail = require('../utils/sendEmail');
 
 // ==========================================
 //   HELPER FUNCTIONS (Pure Logic)
@@ -322,4 +323,49 @@ const aiTaxAdvisor = async (req, res) => {
     res.json({ response: "I am a local tax assistant. Please ask about 80C or Tax Regimes." });
 };
 
-module.exports = { calculateTax, getTaxHistory, deleteTaxRecord, aiTaxAdvisor };
+// --- NEW: Send Report via Email ---
+const emailReport = async (req, res) => {
+    const { email, name, financialYear, netPayable, taxSummary } = req.body;
+
+    try {
+        const message = `
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                <h2 style="color: #2e7d32;">Artha Tax Report</h2>
+                <p>Hi ${name},</p>
+                <p>Here is the summary of your tax calculation for FY ${financialYear}.</p>
+                
+                <div style="background: #f4f4f4; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                    <h3 style="margin-top: 0;">Summary</h3>
+                    <p><strong>Total Income:</strong> ₹${taxSummary.grossTotalIncome.toLocaleString()}</p>
+                    <p><strong>Old Regime Tax:</strong> ₹${taxSummary.oldRegimeTax.toLocaleString()}</p>
+                    <p><strong>New Regime Tax:</strong> ₹${taxSummary.newRegimeTax.toLocaleString()}</p>
+                    <hr>
+                    <h3 style="color: #d32f2f;">Net Payable: ₹${netPayable.toLocaleString()}</h3>
+                    <p style="font-size: 12px; color: #666;">Recommendation: ${taxSummary.recommendation}</p>
+                </div>
+
+                <p>You can view full details in your dashboard history.</p>
+                <p>Regards,<br>Team Artha</p>
+            </div>
+        `;
+
+        await sendEmail({
+            email: email,
+            subject: `Your Tax Calculation Summary (FY ${financialYear})`,
+            message: message
+        });
+
+        res.json({ success: true, message: 'Email sent successfully' });
+    } catch (error) {
+        console.error("Email Error:", error);
+        res.status(500).json({ message: 'Email could not be sent' });
+    }
+};
+
+module.exports = { 
+    calculateTax, 
+    getTaxHistory, 
+    deleteTaxRecord, 
+    aiTaxAdvisor,
+    emailReport // <--- Export this
+};

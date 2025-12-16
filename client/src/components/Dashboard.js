@@ -32,57 +32,45 @@ const Dashboard = () => {
         try {
             const { data } = await axios.get(`https://taxbuddy-o5wu.onrender.com/api/tax/history?userId=${userId}`);
             setHistory(data);
-            
             if (data.length > 0) {
                 const latest = data[0];
                 setLatestCalc(latest);
-                
-                // --- FIX: CALCULATE GROSS INCOME FROM SAVED INPUTS ---
                 const s = latest.income?.salary;
                 const b = latest.income?.business;
                 const h = latest.income?.houseProperty;
                 const o = latest.income?.otherIncome;
-
-                const salary = (s?.basic||0) + (s?.hra||0) + (s?.specialAllowance||0) + (s?.bonus||0) + (s?.gratuity||0) + (s?.pension||0) + (s?.allowances||0);
-                
-                let business = 0;
-                if(b?.is44AD || b?.is44ADA) {
-                     business = (Number(b.turnover || 0) * (Number(b.presumptiveRate || 6)/100));
-                } else {
-                     business = Number(b?.profit || 0);
-                }
-
-                let hp = 0;
-                if(h?.type === 'Rented') hp = (h.rentReceived||0) - (h.municipalTaxes||0) - (h.interestPaid||0); // Simplified NAV
-                else hp = 0 - (h?.interestPaid || 0);
-
-                let other = 0;
-                if(o?.sources) o.sources.forEach(src => other += (Number(src.amount)||0));
-
-                const calculatedGross = salary + business + hp + other;
-                setGrossIncomeDisplay(calculatedGross);
-                // -----------------------------------------------------
+                const gross = Number(latest.grossTotalIncome) || 0;
+                setGrossIncomeDisplay(gross);
 
                 const tax = Number(latest.computedTax?.netTaxPayable) || 0;
-                const takeHome = Math.max(0, calculatedGross - tax);
+                const takeHome = Math.max(0, gross - tax);
 
                 setChartData({
                     labels: ['Tax Payable', 'Net Income'],
-                    datasets: [{
-                        data: [tax, takeHome],
-                        backgroundColor: ['#ef4444', '#7ed957'],
-                        borderWidth: 0,
-                    }],
+                    datasets: [{ data: [tax, takeHome], backgroundColor: ['#ef4444', '#7ed957'], borderWidth: 0 }],
                 });
             }
-        } catch (error) {
-            console.error("Error fetching history");
-        }
+        } catch (error) { console.error("Error fetching history"); }
     };
 
-    const logout = () => {
-        localStorage.removeItem('userInfo');
-        navigate('/');
+    const logout = () => { localStorage.removeItem('userInfo'); navigate('/'); };
+
+    // --- NEW: DELETE ACCOUNT ---
+    const deleteAccount = async () => {
+        if(window.confirm("⚠️ DANGER: Are you sure? \n\nThis will permanently delete your account, tax history, and chat logs. This action cannot be undone.")) {
+            try {
+                // Assuming token is stored in user object or localStorage
+                const token = user.token || JSON.parse(localStorage.getItem('userInfo')).token;
+                const config = { headers: { Authorization: `Bearer ${token}` } };
+                
+                await axios.delete('https://taxbuddy-o5wu.onrender.com/api/auth/profile', config);
+                alert("Account Deleted Successfully.");
+                localStorage.clear();
+                navigate('/');
+            } catch (error) {
+                alert("Failed to delete account. Please try logging in again.");
+            }
+        }
     };
 
     const hour = new Date().getHours();
@@ -90,7 +78,6 @@ const Dashboard = () => {
 
     return (
         <div className="dashboard-container">
-            {/* HEADER */}
             <header className="dashboard-header">
                 <div className="welcome-text">
                     <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'5px'}}>
@@ -105,76 +92,50 @@ const Dashboard = () => {
                 </div>
             </header>
 
-            {/* HERO SECTION */}
             <div className="hero-card">
                 <div className="hero-stats">
                     <div className="hero-label">LATEST INCOME COMPUTATION</div>
-                    <div className="hero-value">
-                        ₹{(grossIncomeDisplay / 100000).toFixed(2)} Lakhs
-                    </div>
-                    <div className="hero-sub">
-                        Tax Liability: ₹{latestCalc ? Number(latestCalc.computedTax?.netTaxPayable || 0).toLocaleString() : '0'}
-                    </div>
+                    <div className="hero-value">₹{(grossIncomeDisplay / 100000).toFixed(2)} Lakhs</div>
+                    <div className="hero-sub">Tax Liability: ₹{latestCalc ? Number(latestCalc.computedTax?.netTaxPayable || 0).toLocaleString() : '0'}</div>
                 </div>
                 <div className="hero-actions">
                     <Link to="/calculator" className="btn-light">Start New +</Link>
-                    {latestCalc && (
-                        <Link to="/calculator" state={{ recordToEdit: latestCalc }} className="btn-outline">View Details</Link>
-                    )}
+                    {latestCalc && (<Link to="/calculator" state={{ recordToEdit: latestCalc }} className="btn-outline">View Details</Link>)}
                 </div>
             </div>
 
             <div className="dashboard-grid">
                 <div className="main-content">
-                    {/* Quick Actions */}
                     <div className="dash-card">
                         <h3>⚡ Quick Actions</h3>
                         <div className="actions-grid">
-                            <Link to="/calculator" className="action-tile">
-                                <span className="tile-icon">🧮</span>
-                                <span className="tile-text">New Calc</span>
-                            </Link>
-                            <Link to="/history" className="action-tile"> {/* LINKED TO NEW HISTORY PAGE */}
-                                <span className="tile-icon">🕒</span>
-                                <span className="tile-text">History</span>
-                            </Link>
-                            <Link to="/profile" className="action-tile">
-                                <span className="tile-icon">👤</span>
-                                <span className="tile-text">Profile</span>
-                            </Link>
-				<AITaxAdvisor 
- 				   userProfile={user} 
-  				  calculationData={latestCalc} 
-				/>
+                            <Link to="/calculator" className="action-tile"><span className="tile-icon">🧮</span><span className="tile-text">New Calc</span></Link>
+                            <Link to="/history" className="action-tile"><span className="tile-icon">🕒</span><span className="tile-text">History</span></Link>
+                            <Link to="/profile" className="action-tile"><span className="tile-icon">👤</span><span className="tile-text">Edit Profile</span></Link>
+                        </div>
+                        
+                        {/* --- NEW: FOOTER LINKS --- */}
+                        <div style={{marginTop: '25px', paddingTop: '15px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px'}}>
+                            <Link to="/legal" style={{color: '#666', textDecoration: 'none'}}>🔒 Privacy & Terms</Link>
+                            <button onClick={deleteAccount} style={{background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontWeight: 'bold'}}>Delete Account</button>
                         </div>
                     </div>
 
-                    {/* Recent Calculations Preview */}
                     <div className="dash-card">
                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #eee', paddingBottom:'15px', marginBottom:'20px'}}>
                             <h3 style={{border:0, margin:0, padding:0}}>Recent Activity</h3>
                             <Link to="/history" style={{fontSize:'13px', color:'#7ed957', textDecoration:'none', fontWeight:'600'}}>View All</Link>
                         </div>
-                        
                         {history.length === 0 ? <p style={{color:'#999'}}>No calculations yet.</p> : (
                             <table className="mini-table">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>FY</th>
-                                        <th>Tax</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
+                                <thead><tr><th>Date</th><th>FY</th><th>Tax</th><th></th></tr></thead>
                                 <tbody>
                                     {history.slice(0, 3).map((rec) => (
                                         <tr key={rec._id}>
                                             <td>{new Date(rec.createdAt).toLocaleDateString()}</td>
                                             <td>{rec.financialYear}</td>
                                             <td style={{fontWeight:'bold', color:'#ef4444'}}>₹{rec.computedTax?.netTaxPayable?.toLocaleString() || 0}</td>
-                                            <td>
-                                                <Link to="/calculator" state={{ recordToEdit: rec }} style={{textDecoration:'none', fontSize:'18px'}}>✏️</Link>
-                                            </td>
+                                            <td><Link to="/calculator" state={{ recordToEdit: rec }} style={{textDecoration:'none', fontSize:'18px'}}>✏️</Link></td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -184,25 +145,22 @@ const Dashboard = () => {
                 </div>
 
                 <div className="sidebar">
-                    {/* Financial Health Chart */}
                     <div className="dash-card" style={{textAlign:'center'}}>
                         <h3>📊 Analysis</h3>
                         {chartData ? (
                             <div style={{height:'180px', display:'flex', justifyContent:'center'}}>
                                 <Doughnut data={chartData} options={{maintainAspectRatio:false, plugins:{legend:{display:false}}}} />
                             </div>
-                        ) : (
-                            <p style={{fontSize:'12px', color:'#999', padding:'20px'}}>Start a calculation to see analytics.</p>
-                        )}
+                        ) : (<p style={{fontSize:'12px', color:'#999', padding:'20px'}}>Start a calculation to see analytics.</p>)}
                         {chartData && (
                             <div style={{marginTop:'15px', fontSize:'12px', color:'#666'}}>
-                                <span style={{color:'#ef4444'}}>●</span> Tax &nbsp; 
-                                <span style={{color:'#7ed957'}}>●</span> Take Home
+                                <span style={{color:'#ef4444'}}>●</span> Tax &nbsp; <span style={{color:'#7ed957'}}>●</span> Take Home
                             </div>
                         )}
                     </div>
                 </div>
             </div>
+            <AITaxAdvisor userProfile={user} calculationData={latestCalc} />
         </div>
     );
 };

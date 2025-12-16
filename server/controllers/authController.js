@@ -1,4 +1,6 @@
 const User = require('../models/User');
+const TaxRecord = require('../models/TaxRecord');
+const ChatRecord = require('../models/ChatRecord'); // If you have this model
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
@@ -133,4 +135,35 @@ const resetPassword = async (req, res) => {
     }
 };
 
-module.exports = { registerUser, loginUser, updateProfile, forgotPassword, resetPassword };
+// @desc Delete User & All Data (GDPR Right to Erasure)
+const deleteUser = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id); // req.user set by auth middleware
+
+        if (user) {
+            // 1. Delete all Tax Records
+            await TaxRecord.deleteMany({ user: user._id });
+            
+            // 2. Delete all Chat Records
+            if (ChatRecord) await ChatRecord.deleteMany({ user: user._id });
+
+            // 3. Delete User
+            await User.findByIdAndDelete(user._id);
+
+            res.json({ message: 'User account and all data deleted successfully.' });
+        } else {
+            res.status(404).json({ message: 'User not found' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { 
+    registerUser, 
+    loginUser, 
+    updateProfile, 
+    forgotPassword, 
+    resetPassword, 
+    deleteUser // <--- Export this
+};

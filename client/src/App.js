@@ -11,6 +11,8 @@ import Profile from './components/Profile';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import History from './components/History';
+import CookieBanner from './components/CookieBanner';
+import Legal from './components/Legal';
 
 // --- IMPORT ADMIN COMPONENTS ---
 import AdminLogin from './components/AdminLogin';
@@ -20,6 +22,7 @@ function App() {
   return (
     <Router>
       <div className="App">
+        <CookieBanner /> {/* Add this here so it shows on all pages */}
         <Routes>
           {/* --- Public Routes --- */}
           <Route path="/" element={<Login />} />
@@ -37,7 +40,8 @@ function App() {
           <Route path="/admin" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
 
-        </Routes>
+          <Route path="/legal" element={<Legal />} />
+      </Routes>
       </div>
     </Router>
   );

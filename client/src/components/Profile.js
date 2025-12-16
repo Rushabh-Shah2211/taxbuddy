@@ -74,7 +74,7 @@ const Profile = () => {
                     </div>
                     
                     <button type="submit" className="auth-btn">Save Changes</button>
-                    <button type="button" onClick={() => navigate('/calculator')} style={{marginTop: '10px', background: 'transparent', color: '#666', border: 'none', cursor: 'pointer', width:'100%'}}>Cancel</button>
+                    <button type="button" onClick={() => navigate('/dashboard')} style={{marginTop: '10px', background: 'transparent', color: '#666', border: 'none', cursor: 'pointer', width:'100%'}}>Cancel</button>
                 </form>
             </div>
         </div>
