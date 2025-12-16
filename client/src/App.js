@@ -11,6 +11,8 @@ import Profile from './components/Profile';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import History from './components/History';
+
+// --- IMPORT ADMIN COMPONENTS ---
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
 
@@ -24,16 +26,17 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password/:resetToken" element={<ResetPassword />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/admin" element={<AdminLogin />} />
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
           
           {/* --- Main App Routes --- */}
           <Route path="/calculator" element={<TaxCalculator />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/history" element={<History />} />
           <Route path="/profile" element={<Profile />} />
+
+          {/* --- ADMIN ROUTES (This is what was missing) --- */}
           <Route path="/admin" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+
         </Routes>
       </div>
     </Router>
