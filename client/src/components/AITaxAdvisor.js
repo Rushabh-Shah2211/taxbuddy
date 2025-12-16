@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import axios from 'axios'; // Imported Axios as requested
-import './TaxBotStyles.css'; // Ensure you have the CSS file from the previous step
+import axios from 'axios'; 
+import './TaxBotStyles.css'; 
 
 const AITaxAdvisor = ({ userProfile, calculationData }) => {
     // State Management
@@ -89,7 +89,6 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
 
     // ===================== LOGIC HANDLERS =====================
 
-    // Helper: Find best matching answer from local DB
     const findBestAnswer = (query) => {
         const qLower = query.toLowerCase();
         let bestMatch = null;
@@ -106,7 +105,6 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
         return bestMatch ? bestMatch.answer : null;
     };
 
-    // Helper: Save chat to backend (Axios integration)
     const saveChatToBackend = async (question, answer) => {
         if (userProfile && userProfile._id) {
             try {
@@ -127,22 +125,18 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
         setLoading(true);
         setViewState('chat'); 
 
-        // Add User Message
         const newHistory = [...chatHistory, { role: 'user', text }];
         setChatHistory(newHistory);
 
         setTimeout(async () => {
             let answer = '';
             
-            // 1. Check Local Database first
             const localAnswer = findBestAnswer(text);
 
             if (localAnswer) {
                 answer = localAnswer;
             } else {
-                // 2. Fallback to API if no local match
                 try {
-                    // Note: Ensure this endpoint matches your specific AI backend if distinct from the logging endpoint
                     const response = await fetch('https://taxbuddy-o5wu.onrender.com/api/tax/ai-advisor', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -155,11 +149,9 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
                 }
             }
 
-            // 3. Update Chat State
             setChatHistory(prev => [...prev, { role: 'assistant', text: answer }]);
             setLoading(false);
 
-            // 4. Save to Backend (Merged Feature)
             await saveChatToBackend(text, answer);
 
         }, 500);
@@ -173,11 +165,12 @@ const AITaxAdvisor = ({ userProfile, calculationData }) => {
         }
     };
 
-    // Helper to render formatting
     const formatMessage = (text) => {
         return text.split('\n').map((line, i) => {
+            // FIXED REGEX HERE
             if (line.includes('[Image of')) {
-                const imgQuery = line.match(/\/)[1];
+                const match = line.match(/\[Image of (.*)\]/);
+                const imgQuery = match ? match[1] : 'Diagram';
                 return (
                     <div key={i} className="bot-diagram-placeholder">
                         📊 Diagram: {imgQuery}
