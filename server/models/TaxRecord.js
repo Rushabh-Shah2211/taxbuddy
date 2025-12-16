@@ -15,7 +15,7 @@ const taxRecordSchema = mongoose.Schema({
             enabled: { type: Boolean, default: false },
             detailedMode: { type: Boolean, default: false },
             
-            // FIX: These fields store ONLY the calculated TAXABLE AMOUNT (Number)
+            // Taxable Amounts (Numbers)
             basic: { type: Number, default: 0 },
             hra: { type: Number, default: 0 },
             gratuity: { type: Number, default: 0 },
@@ -24,18 +24,22 @@ const taxRecordSchema = mongoose.Schema({
             perquisites: { type: Number, default: 0 },
             allowances: { type: Number, default: 0 },
             
-            // FIX: This NEW field stores the raw complex inputs (so no crash)
+            // Raw Inputs (Object)
             details: { type: Object, default: {} } 
         },
-        // Page 3: Business
+        
+        // Page 3: Business (Updated for Multiple)
         business: {
             enabled: { type: Boolean, default: false },
-            turnover: { type: Number, default: 0 },
-            profit: { type: Number, default: 0 },
-            is44AD: { type: Boolean, default: false },
-            is44ADA: { type: Boolean, default: false },
-            presumptiveRate: { type: Number, default: 6 }
+            businesses: [{
+                type: { type: String, default: "Presumptive" }, // Presumptive or Regular
+                name: String,
+                turnover: Number,
+                profit: Number,
+                presumptiveRate: Number // for 44AD/ADA
+            }]
         },
+
         // Page 4: House Property
         houseProperty: {
             enabled: { type: Boolean, default: false },
@@ -44,11 +48,38 @@ const taxRecordSchema = mongoose.Schema({
             interestPaid: { type: Number, default: 0 },
             municipalTaxes: { type: Number, default: 0 }
         },
+
+        // Page 6: Capital Gains (New Structure)
+        capitalGains: {
+            enabled: { type: Boolean, default: false },
+            shares: {
+                stcg111a: { type: Number, default: 0 }, // Short Term (15%/20%)
+                ltcg112a: { type: Number, default: 0 }  // Long Term (>1L 10%/12.5%)
+            },
+            property: {
+                ltcg: { type: Number, default: 0 },     // 20% / 12.5%
+                stcg: { type: Number, default: 0 }      // Slab
+            },
+            other: { type: Number, default: 0 }         // Slab
+        },
+
         // Page 5: Other Income
         otherIncome: {
             enabled: { type: Boolean, default: false },
             sources: [{ name: String, amount: Number, expenses: Number }]
         }
+    },
+
+    // Page 7: Detailed Deductions (New Structure)
+    deductions: {
+        enabled: { type: Boolean, default: false },
+        detailedMode: { type: Boolean, default: false },
+        section80C: { type: Number, default: 0 },
+        section80D: { type: Number, default: 0 },
+        section80E: { type: Number, default: 0 },  // Education Loan
+        section80G: { type: Number, default: 0 },  // Donations
+        section80TTA: { type: Number, default: 0 }, // Savings Interest
+        otherDeductions: { type: Number, default: 0 }
     },
 
     // Page 8: Taxes Paid
