@@ -26,10 +26,7 @@ const Login = () => {
         <div className="auth-wrapper">
             <div className="auth-card">
                 <div className="logo-section">
-                    {/* Larger Logo */}
                     <img src={logo} alt="Artha by RB" className="auth-logo" />
-                    
-                    {/* Name and Tagline Removed. Replaced with Welcome Message */}
                     <h2>Welcome Back</h2>
                     <p>Login to manage your taxes efficiently.</p>
                 </div>
@@ -55,6 +52,13 @@ const Login = () => {
                 
                 <div className="auth-footer">
                     New here? <Link to="/register">Create an account</Link>
+                    
+                    {/* --- NEW ADMIN LINK ADDED HERE --- */}
+                    <div style={{ marginTop: '20px', fontSize: '12px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
+                        <Link to="/admin" style={{ color: '#aaa', textDecoration: 'none', fontWeight: 'normal' }}>
+                            Admin Console
+                        </Link>
+                    </div>
                 </div>
             </div>
         </div>
