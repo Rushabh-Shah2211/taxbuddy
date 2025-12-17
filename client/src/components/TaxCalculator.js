@@ -199,8 +199,7 @@ const TaxCalculator = ({ isGuest = false }) => {
         <div className="calculator-container">
             <div className="navbar">
                 <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                    <img src={logo} alt="Logo" style={{height:'40px'}} />
-                    <h2 style={{margin:0, fontSize:'22px', fontWeight:'600', color:'#2c3e50'}}>Artha</h2>
+                    <img src={logo} alt="Logo" style={{height:'60px'}} />
                 </div>
                 <div className="nav-links">
                     {user ? (

@@ -3,14 +3,18 @@ const nodemailer = require('nodemailer');
 
 const sendEmail = async (options) => {
     const transporter = nodemailer.createTransport({
-        service: 'gmail',
         host: 'smtp.gmail.com',
-        port: 465, // Use 465 for secure SSL connection (Render allows this)
-        secure: true, 
+        port: 587,                 // Changed from 465 to 587
+        secure: false,             // Must be false for port 587
+        requireTLS: true,          // Force TLS
         auth: {
             user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS, // Must be the 16-char App Password
+            pass: process.env.EMAIL_PASS, // Your 16-char App Password
         },
+        tls: {
+            ciphers: 'SSLv3',      // Helps with some node version compatibility
+            rejectUnauthorized: false // Bypasses some strict SSL checks
+        }
     });
 
     const mailOptions = {
@@ -20,7 +24,13 @@ const sendEmail = async (options) => {
         html: options.message,
     };
 
-    await transporter.sendMail(mailOptions);
+    try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log("Email sent: " + info.response);
+    } catch (error) {
+        console.error("Transporter Error:", error);
+        throw error; // Rethrow so the controller catches it
+    }
 };
 
 module.exports = sendEmail;
