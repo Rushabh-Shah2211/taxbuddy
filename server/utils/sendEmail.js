@@ -8,7 +8,7 @@ const sendEmail = async (options) => {
     // 1. Prepare Data
     const emailData = {
         sender: { 
-            name: "Artha Tax App", 
+            name: "Artha by RB", 
             email: process.env.SENDER_EMAIL // Must be verified in Brevo
         },
         to: [

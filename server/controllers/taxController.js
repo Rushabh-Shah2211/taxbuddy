@@ -3,19 +3,18 @@ const TaxRecord = require('../models/TaxRecord');
 const sendEmail = require('../utils/sendEmail');
 
 // ==========================================
-//   HELPER FUNCTIONS (Pure Logic)
+//   HELPER FUNCTIONS
 // ==========================================
 
-// ... (Keep calculateGratuity, calculateLeaveEncashment, calculatePension, calculateHRA, calculateCGTax AS IS) ...
 const calculateGratuity = (details, isGovt) => {
     if (!details || !details.received) return { taxable: 0, exempt: 0 };
     if (isGovt) return { taxable: 0, exempt: details.received };
     const { received, lastDrawnSalary, yearsOfService, coveredByAct } = details;
-    let exemptAmount = 0;
     const limit = 2000000;
     const lastDraw = Number(lastDrawnSalary) || 0;
     const years = Number(yearsOfService) || 0;
     const rec = Number(received) || 0;
+    let exemptAmount = 0;
     if (coveredByAct) exemptAmount = Math.min((15 / 26) * lastDraw * years, limit, rec);
     else exemptAmount = Math.min(0.5 * lastDraw * years, limit, rec);
     return { taxable: Math.max(0, rec - exemptAmount), exempt: exemptAmount };
@@ -70,48 +69,10 @@ const calculateCGTax = (cg) => {
     if (ltcgShares > 125000) tax += (ltcgShares - 125000) * 0.125;
     const ltcgProp = Number(cg.property?.ltcg) || 0;
     if (ltcgProp > 0) tax += ltcgProp * 0.125;
-    return tax; // Return Raw Tax (Surcharge/Cess applied later on total)
+    return tax; 
 };
 
-// --- UPDATED: Surcharge Logic ---
-const getSurcharge = (totalIncome, totalTax, regime) => {
-    let surchargeRate = 0;
-    
-    // Rates for FY 25-26
-    if (totalIncome > 50000000 && regime === 'Old') surchargeRate = 0.37; // > 5Cr (Old only)
-    else if (totalIncome > 20000000) surchargeRate = 0.25; // > 2Cr (Max 25% for New)
-    else if (totalIncome > 10000000) surchargeRate = 0.15; // > 1Cr
-    else if (totalIncome > 5000000) surchargeRate = 0.10;  // > 50L
-
-    let surchargeAmount = totalTax * surchargeRate;
-    let taxWithSurcharge = totalTax + surchargeAmount;
-
-    // Marginal Relief Check
-    let limit = 0;
-    if(surchargeRate === 0.10) limit = 5000000;
-    else if(surchargeRate === 0.15) limit = 10000000;
-    else if(surchargeRate === 0.25) limit = 20000000;
-    else if(surchargeRate === 0.37) limit = 50000000;
-
-    if (limit > 0) {
-        // Calculate tax on the exact limit amount (to compare)
-        // Note: Ideally, this needs a recursive call to calculateSlabTax for the limit, 
-        // but for simplicity in this snippet, we approximate the relief logic:
-        const incomeExcess = totalIncome - limit;
-        // Relief: The surcharge amount cannot exceed the (Income - Limit) + Tax on Limit
-        // This is complex to perfect without separate utility, simplified here:
-        if (incomeExcess < surchargeAmount) {
-             // Basic relief approximation: 
-             // Tax payable shall not exceed (Tax on Limit + (Income - Limit))
-             // This requires calculating tax on 'limit' exactly. 
-             // For SaaS MVP, standard surcharge is usually sufficient, but let's leave placeholder
-        }
-    }
-
-    return surchargeAmount;
-};
-
-const calculateSlabTax = (taxableIncome, regime, ageGroup) => {
+const calculateSlabTaxRaw = (taxableIncome, regime, ageGroup) => {
     let tax = 0;
     let income = Math.max(0, Number(taxableIncome) || 0);
 
@@ -126,7 +87,6 @@ const calculateSlabTax = (taxableIncome, regime, ageGroup) => {
         
         if (income <= 500000) tax = 0; 
     } else {
-        // New Regime FY 25-26
         if (income > 2400000) tax += 300000 + (income - 2400000) * 0.30;
         else if (income > 2000000) tax += 200000 + (income - 2000000) * 0.25;
         else if (income > 1600000) tax += 120000 + (income - 1600000) * 0.20;
@@ -136,20 +96,42 @@ const calculateSlabTax = (taxableIncome, regime, ageGroup) => {
         
         if (income <= 1200000) tax = 0; 
     }
-    return tax; // Return Raw Tax
+    return tax;
 };
 
-const calculateFinalTaxWithSurchargeAndCess = (baseTax, specialTax, totalIncome, regime) => {
-    let totalTax = baseTax + specialTax;
-    if (totalTax <= 0) return 0;
+const calculateFinalTax = (income, baseTax, regime, ageGroup) => {
+    let surchargeRate = 0;
+    if (income > 50000000 && regime === 'Old') surchargeRate = 0.37;
+    else if (income > 20000000) surchargeRate = 0.25;
+    else if (income > 10000000) surchargeRate = 0.15;
+    else if (income > 5000000) surchargeRate = 0.10;
 
-    // Apply Surcharge
-    const surcharge = getSurcharge(totalIncome, totalTax, regime);
-    
-    // Apply Cess (4% on Tax + Surcharge)
-    const cess = (totalTax + surcharge) * 0.04;
+    let surcharge = baseTax * surchargeRate;
+    let totalTaxWithSurcharge = baseTax + surcharge;
 
-    return totalTax + surcharge + cess;
+    let limit = 0;
+    if (income > 50000000 && regime === 'Old') limit = 50000000;
+    else if (income > 20000000) limit = 20000000;
+    else if (income > 10000000) limit = 10000000;
+    else if (income > 5000000) limit = 5000000;
+
+    if (limit > 0) {
+        let taxAtLimit = calculateSlabTaxRaw(limit, regime, ageGroup);
+        let surchargeAtLimitRate = 0;
+        if (limit > 50000000 && regime === 'Old') surchargeAtLimitRate = 0.37;
+        else if (limit > 20000000) surchargeAtLimitRate = 0.25;
+        else if (limit > 10000000) surchargeAtLimitRate = 0.15;
+        else if (limit > 5000000) surchargeAtLimitRate = 0.10;
+        
+        let taxAtLimitWithSurcharge = taxAtLimit + (taxAtLimit * surchargeAtLimitRate);
+        const incomeExcess = income - limit;
+        const maxTaxPayable = taxAtLimitWithSurcharge + incomeExcess;
+
+        if (totalTaxWithSurcharge > maxTaxPayable) {
+            totalTaxWithSurcharge = maxTaxPayable; 
+        }
+    }
+    return totalTaxWithSurcharge * 1.04;
 };
 
 // ==========================================
@@ -233,14 +215,14 @@ const calculateTax = async (req, res) => {
             income.otherIncome.sources.forEach(s => otherSrcIncome += (Number(s.amount)||0));
         }
 
-        // 5. CAPITAL GAINS (Slab Components)
+        // 5. CAPITAL GAINS
         let cgSlabIncome = 0; 
         if (income.capitalGains?.enabled) {
             cgSlabIncome += (Number(income.capitalGains.property?.stcg) || 0);
             cgSlabIncome += (Number(income.capitalGains.other) || 0);
         }
         
-        // 6. GROSS TOTAL INCOME (For Surcharge Calc)
+        // 6. TOTAL INCOME
         const grossTotalIncome = totalSalaryTaxable + businessIncome + hpIncome + otherSrcIncome + cgSlabIncome;
 
         // 7. DEDUCTIONS
@@ -251,20 +233,17 @@ const calculateTax = async (req, res) => {
             totalDeductions = val80C + (Number(d.section80D)||0) + (Number(d.section80E)||0) + (Number(d.section80G)||0) + (Number(d.section80TTA)||0) + (Number(d.otherDeductions)||0);
         }
 
-        // 8. TAX CALCULATION (Updated with Surcharge)
+        // 8. TAX CALCULATION
         const netTaxableOld = Math.max(0, grossTotalIncome - totalDeductions);
         const netTaxableNew = Math.max(0, grossTotalIncome);
 
-        // A. Calculate Base Slab Tax
-        let taxOldBase = calculateSlabTax(netTaxableOld, 'Old', ageGroup);
-        let taxNewBase = calculateSlabTax(netTaxableNew, 'New', ageGroup);
+        let taxOldBase = calculateSlabTaxRaw(netTaxableOld, 'Old', ageGroup);
+        let taxNewBase = calculateSlabTaxRaw(netTaxableNew, 'New', ageGroup);
 
-        // B. Calculate Special CG Tax (Base)
         const cgTaxBase = calculateCGTax(income.capitalGains);
 
-        // C. Apply Surcharge & Cess Logic
-        let taxOldFinal = calculateFinalTaxWithSurchargeAndCess(taxOldBase, cgTaxBase, netTaxableOld, 'Old');
-        let taxNewFinal = calculateFinalTaxWithSurchargeAndCess(taxNewBase, cgTaxBase, netTaxableNew, 'New');
+        let taxOldFinal = calculateFinalTax(netTaxableOld, taxOldBase + cgTaxBase, 'Old', ageGroup);
+        let taxNewFinal = calculateFinalTax(netTaxableNew, taxNewBase + cgTaxBase, 'New', ageGroup);
 
         const finalTax = Math.min(taxOldFinal, taxNewFinal);
         const recommendation = taxNewFinal <= taxOldFinal ? "New Regime" : "Old Regime";
@@ -283,6 +262,19 @@ const calculateTax = async (req, res) => {
             ];
         }
 
+        // Prepare Detailed Breakdown Object for Email/Frontend
+        // Note: We need to pass the raw amounts calculated above
+        const detailedBreakdown = {
+            salary: Math.round(totalSalaryTaxable),
+            business: Math.round(businessIncome),
+            other: Math.round(otherSrcIncome),
+            capitalGains: Math.round(cgSlabIncome + (income.capitalGains?.shares?.stcg111a || 0) + (income.capitalGains?.shares?.ltcg112a || 0) + (income.capitalGains?.property?.ltcg || 0)), // Approx for display
+            houseProperty: Math.round(hpIncome),
+            tds: Number(taxesPaid?.tds) || 0,
+            advanceTax: Number(taxesPaid?.advanceTax) || 0,
+            selfAssessment: Number(taxesPaid?.selfAssessment) || 0
+        };
+
         if (userId) {
             await TaxRecord.create({
                 user: userId, financialYear, ageGroup, residentialStatus,
@@ -300,7 +292,8 @@ const calculateTax = async (req, res) => {
             netPayable: Math.round(netPayable),
             recommendation,
             suggestions: [],
-            advanceTaxSchedule
+            advanceTaxSchedule,
+            detailedBreakdown // Pass this to frontend so it can pass it back to email endpoint
         });
 
     } catch (error) {
@@ -327,31 +320,65 @@ const aiTaxAdvisor = async (req, res) => {
     res.json({ response: "I am a local tax assistant. Please ask about 80C or Tax Regimes." });
 };
 
+// --- UPDATED EMAIL REPORT FUNCTION ---
 const emailReport = async (req, res) => {
-    const { email, name, financialYear, netPayable, taxSummary } = req.body;
+    // Expect detailedBreakdown in the request body now
+    const { email, name, financialYear, netPayable, taxSummary, breakdown } = req.body;
+    
+    // Default values if breakdown is missing (for older frontend versions)
+    const b = breakdown || {
+        salary: 0, business: 0, other: 0, capitalGains: 0, houseProperty: 0,
+        tds: 0, advanceTax: 0, selfAssessment: 0
+    };
+
+    const dateStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+
     try {
         const message = `
-            <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-                <h2 style="color: #2e7d32;">Artha Tax Report</h2>
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; line-height: 1.6;">
+                <h2 style="color: #2e7d32; border-bottom: 2px solid #2e7d32; padding-bottom: 10px;">Artha Tax Report</h2>
                 <p>Hi ${name},</p>
-                <p>Here is the summary of your tax calculation for FY ${financialYear}.</p>
-                <div style="background: #f4f4f4; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                    <h3 style="margin-top: 0;">Summary</h3>
-                    <p><strong>Total Income:</strong> ₹${(taxSummary.grossTotalIncome || 0).toLocaleString()}</p>
-                    <p><strong>Old Regime Tax:</strong> ₹${(taxSummary.oldRegimeTax || 0).toLocaleString()}</p>
-                    <p><strong>New Regime Tax:</strong> ₹${(taxSummary.newRegimeTax || 0).toLocaleString()}</p>
-                    <hr>
-                    <h3 style="color: #d32f2f;">Net Payable: ₹${(netPayable || 0).toLocaleString()}</h3>
-                    <p style="font-size: 12px; color: #666;">Recommendation: ${taxSummary.recommendation}</p>
+                <p>Here is the summary of your tax calculation for <strong>FY ${financialYear}</strong> made on ${dateStr}.</p>
+                
+                <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #ddd;">
+                    <h3 style="margin-top: 0; color: #444;">Summary of calculation:</h3>
+                    
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
+                        <tr><td style="padding: 5px 0;">Salary Income:</td><td style="text-align: right; font-weight: bold;">₹${b.salary.toLocaleString('en-IN')}</td></tr>
+                        <tr><td style="padding: 5px 0;">Business Income:</td><td style="text-align: right; font-weight: bold;">₹${b.business.toLocaleString('en-IN')}</td></tr>
+                        <tr><td style="padding: 5px 0;">Income from Other Sources:</td><td style="text-align: right; font-weight: bold;">₹${b.other.toLocaleString('en-IN')}</td></tr>
+                        <tr><td style="padding: 5px 0;">Capital Gains:</td><td style="text-align: right; font-weight: bold;">₹${b.capitalGains.toLocaleString('en-IN')}</td></tr>
+                        <tr><td style="padding: 5px 0;">House Property Income:</td><td style="text-align: right; font-weight: bold;">₹${b.houseProperty.toLocaleString('en-IN')}</td></tr>
+                        <tr style="border-top: 1px solid #ccc;"><td style="padding: 8px 0; font-weight: bold;">Total Income:</td><td style="text-align: right; font-weight: bold; color: #2e7d32;">₹${taxSummary.grossTotalIncome.toLocaleString('en-IN')}</td></tr>
+                    </table>
+
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
+                        <tr><td style="padding: 5px 0;">Old Regime Tax:</td><td style="text-align: right;">₹${taxSummary.oldRegimeTax.toLocaleString('en-IN')}</td></tr>
+                        <tr><td style="padding: 5px 0;">New Regime Tax:</td><td style="text-align: right;">₹${taxSummary.newRegimeTax.toLocaleString('en-IN')}</td></tr>
+                    </table>
+
+                    <hr style="border: 0; border-top: 1px dashed #ccc; margin: 15px 0;">
+
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr><td style="padding: 5px 0;">TDS:</td><td style="text-align: right;">₹${b.tds.toLocaleString('en-IN')}</td></tr>
+                        <tr><td style="padding: 5px 0;">Self Assessment Tax:</td><td style="text-align: right;">₹${b.selfAssessment.toLocaleString('en-IN')}</td></tr>
+                        <tr><td style="padding: 5px 0;">Advance Tax:</td><td style="text-align: right;">₹${b.advanceTax.toLocaleString('en-IN')}</td></tr>
+                        <tr style="font-size: 18px; color: #d32f2f; font-weight: bold;"><td style="padding-top: 15px;">Net Payable:</td><td style="text-align: right; padding-top: 15px;">₹${netPayable.toLocaleString('en-IN')}</td></tr>
+                    </table>
                 </div>
-                <p>Disclaimer: This report is based on user-provided data. Consult a professional for accurate filing.</p>
-                <p>Regards,<br>Team Artha</p>
+
+                <p style="font-size: 14px;"><strong>Recommendation:</strong> You should opt for <strong>${taxSummary.recommendation}</strong></p>
+                
+                <p style="font-size: 11px; color: #888; margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px;">
+                    Disclaimer: This report is based on user-provided data. Consult a professional for accurate filing.
+                </p>
+                <p style="margin-top: 20px;">Regards,<br><strong>Team Artha</strong></p>
             </div>
         `;
 
         await sendEmail({
             email: email,
-            subject: `Your Tax Calculation Summary (FY ${financialYear})`,
+            subject: `Artha Tax Report - FY ${financialYear}`,
             message: message
         });
 
