@@ -3,6 +3,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 // Import all your components
+import LandingPage from './components/LandingPage';
 import Login from './components/Login';
 import Register from './components/Register';
 import TaxCalculator from './components/TaxCalculator';
@@ -25,11 +26,15 @@ function App() {
         <CookieBanner /> {/* Add this here so it shows on all pages */}
         <Routes>
           {/* --- Public Routes --- */}
-          <Route path="/" element={<Login />} />
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password/:resetToken" element={<ResetPassword />} />
           
+          {/* Guest Route */}
+          <Route path="/guest-calculator" element={<TaxCalculator isGuest={true} />} /> {/* Pass prop */}
+
           {/* --- Main App Routes --- */}
           <Route path="/calculator" element={<TaxCalculator />} />
           <Route path="/dashboard" element={<Dashboard />} />
