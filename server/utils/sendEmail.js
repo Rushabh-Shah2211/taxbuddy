@@ -1,35 +1,36 @@
 // server/utils/sendEmail.js
-const nodemailer = require('nodemailer');
+const axios = require('axios');
 
 const sendEmail = async (options) => {
-    const transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 587,                 // Changed from 465 to 587
-        secure: false,             // Must be false for port 587
-        requireTLS: true,          // Force TLS
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS, // Your 16-char App Password
-        },
-        tls: {
-            ciphers: 'SSLv3',      // Helps with some node version compatibility
-            rejectUnauthorized: false // Bypasses some strict SSL checks
-        }
-    });
+    // Brevo API Endpoint
+    const url = 'https://api.brevo.com/v3/smtp/email';
 
-    const mailOptions = {
-        from: `"Artha Tax App" <${process.env.EMAIL_USER}>`,
-        to: options.email,
+    // 1. Prepare Data
+    const emailData = {
+        sender: { 
+            name: "Artha Tax App", 
+            email: process.env.SENDER_EMAIL // Must be verified in Brevo
+        },
+        to: [
+            { email: options.email }
+        ],
         subject: options.subject,
-        html: options.message,
+        htmlContent: options.message
     };
 
+    // 2. Send Request via HTTP (Port 443 - Never Blocked)
     try {
-        const info = await transporter.sendMail(mailOptions);
-        console.log("Email sent: " + info.response);
+        await axios.post(url, emailData, {
+            headers: {
+                'api-key': process.env.BREVO_API_KEY,
+                'Content-Type': 'application/json',
+                'accept': 'application/json'
+            }
+        });
+        console.log(`✅ Email sent to ${options.email} via Brevo API`);
     } catch (error) {
-        console.error("Transporter Error:", error);
-        throw error; // Rethrow so the controller catches it
+        console.error("❌ Brevo API Error:", error.response ? error.response.data : error.message);
+        throw new Error("Email could not be sent due to API error.");
     }
 };
 
