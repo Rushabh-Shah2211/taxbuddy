@@ -161,14 +161,31 @@ const TaxCalculator = ({ isGuest = false }) => {
     };
 
     const handleEmailReport = async () => {
-        if(isGuest) {
-            alert("🔒 Please Login to email reports.");
-            return;
+        if(!user || !result) return;
+        
+        const btn = document.getElementById('emailBtn');
+        const originalText = btn.innerText;
+        btn.innerText = "Sending...";
+        btn.disabled = true;
+        
+        try {
+            // Use the correct API URL
+            await axios.post('https://taxbuddy-o5wu.onrender.com/api/tax/email-report', {
+                email: user.email,
+                name: user.name,
+                financialYear: formData.financialYear,
+                netPayable: result.netPayable,
+                taxSummary: result
+            });
+            alert("✅ Report emailed successfully to " + user.email);
+        } catch (error) {
+            console.error(error); // Log error to console for debugging
+            alert("❌ Failed to send email. Check console for details.");
+        } finally {
+            btn.innerText = originalText;
+            btn.disabled = false;
         }
-        // ... (Existing email logic) ...
-        // Keeping it short for brevity, paste existing logic here
     };
-
     const logout = () => { localStorage.removeItem('userInfo'); navigate('/'); };
     const getMonthlyTDS = () => {
         if (!result || result.netPayable <= 0) return 0;
