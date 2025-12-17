@@ -1,9 +1,79 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import logo from '../assets/rb_logo.png';
 
 const LandingPage = () => {
     const navigate = useNavigate();
+    const [salary, setSalary] = useState(1000000); // Default 10L
+    const [deductions, setDeductions] = useState(150000); // Default 1.5L
+    const [showResults, setShowResults] = useState(false);
+    const [taxOld, setTaxOld] = useState(0);
+    const [taxNew, setTaxNew] = useState(0);
+    const [savings, setSavings] = useState(0);
+
+    const calculateOldTax = (taxableIncome) => {
+        let tax = 0;
+        if (taxableIncome > 1000000) {
+            tax += (taxableIncome - 1000000) * 0.30;
+            taxableIncome = 1000000;
+        }
+        if (taxableIncome > 500000) {
+            tax += (taxableIncome - 500000) * 0.20;
+            taxableIncome = 500000;
+        }
+        if (taxableIncome > 250000) {
+            tax += (taxableIncome - 250000) * 0.05;
+        }
+        // Rebate u/s 87A: up to Rs 12,500 if income <=5L
+        if (taxableIncome <= 500000 && tax > 0) {
+            tax = Math.min(tax, 12500);
+        }
+        // Cess 4%
+        return tax * 1.04;
+    };
+
+    const calculateNewTax = (taxableIncome) => {
+        let tax = 0;
+        if (taxableIncome > 2400000) {
+            tax += (taxableIncome - 2400000) * 0.30;
+            taxableIncome = 2400000;
+        }
+        if (taxableIncome > 2000000) {
+            tax += (taxableIncome - 2000000) * 0.25;
+            taxableIncome = 2000000;
+        }
+        if (taxableIncome > 1600000) {
+            tax += (taxableIncome - 1600000) * 0.20;
+            taxableIncome = 1600000;
+        }
+        if (taxableIncome > 1200000) {
+            tax += (taxableIncome - 1200000) * 0.15;
+            taxableIncome = 1200000;
+        }
+        if (taxableIncome > 800000) {
+            tax += (taxableIncome - 800000) * 0.10;
+            taxableIncome = 800000;
+        }
+        if (taxableIncome > 400000) {
+            tax += (taxableIncome - 400000) * 0.05;
+        }
+        // Rebate u/s 87A: up to Rs 60,000 if income <=12L
+        if (taxableIncome <= 1200000 && tax > 0) {
+            tax = Math.min(tax, 60000);
+        }
+        // Cess 4%
+        return tax * 1.04;
+    };
+
+    const handleCalculate = () => {
+        const taxableOld = Math.max(0, salary - deductions);
+        const taxO = calculateOldTax(taxableOld);
+        const taxN = calculateNewTax(salary);
+        setTaxOld(taxO);
+        setTaxNew(taxN);
+        setSavings(taxO - taxN);
+        setShowResults(true);
+    };
 
     return (
         <div style={{ fontFamily: "'Poppins', sans-serif", background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', minHeight: '100vh' }}>
@@ -11,7 +81,6 @@ const LandingPage = () => {
             <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 50px', background: 'white', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', position: 'sticky', top: 0, zIndex: 100 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <img src={logo} alt="Artha Logo" style={{ height: '40px' }} />
-                    <span style={{ fontSize: '24px', fontWeight: 'bold', color: '#2c3e50' }}>Artha</span>
                 </div>
                 <div>
                     <Link to="/login" style={{ textDecoration: 'none', color: '#666', marginRight: '20px', fontWeight: '500' }}>Login</Link>
@@ -42,7 +111,7 @@ const LandingPage = () => {
                                 display: 'flex', alignItems: 'center', gap: '8px' 
                             }}
                         >
-                            🚀 Try Guest Mode Now
+                            🚀 Start Full Calculator
                         </button>
                         <button 
                             onClick={() => navigate('/login')} 
@@ -59,24 +128,67 @@ const LandingPage = () => {
                     </div>
                 </div>
 
-                {/* Hero Graphic: Tax Savings Mockup */}
+                {/* Tax Calculator Demo */}
                 <div style={{ flex: '1', minWidth: '300px', display: 'flex', justifyContent: 'center' }}>
-                    <div style={{ width: '100%', maxWidth: '450px', height: '350px', background: 'white', borderRadius: '20px', boxShadow: '0 20px 50px rgba(0,0,0,0.1)', padding: '30px', display: 'flex', flexDirection: 'column', justifyContent: 'space-around' }}>
-                        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                            <span style={{ fontSize: '48px' }}>💰</span>
-                            <p style={{ fontSize: '14px', color: '#666', margin: '5px 0' }}>Old Regime</p>
-                            <div style={{ width: '100%', height: '30px', background: '#e74c3c', borderRadius: '5px', marginBottom: '10px' }}></div>
-                            <p style={{ fontSize: '12px', color: '#888' }}>₹1,20,000 Tax</p>
+                    <div style={{ width: '100%', maxWidth: '450px', background: 'white', borderRadius: '20px', boxShadow: '0 20px 50px rgba(0,0,0,0.1)', padding: '30px', textAlign: 'center' }}>
+                        <h3 style={{ color: '#2c3e50', marginBottom: '20px' }}>Quick Demo: See Your Savings</h3>
+                        <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>Enter your details (AY 2026-27 Slabs)</p>
+                        
+                        <div style={{ marginBottom: '15px', textAlign: 'left' }}>
+                            <label style={{ display: 'block', fontSize: '14px', color: '#888', marginBottom: '5px' }}>Annual Salary (₹)</label>
+                            <input 
+                                type="number" 
+                                value={salary} 
+                                onChange={(e) => setSalary(Number(e.target.value))} 
+                                style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '16px' }} 
+                            />
                         </div>
-                        <div style={{ textAlign: 'center' }}>
-                            <span style={{ fontSize: '48px', color: '#7ed957' }}>⚡</span>
-                            <p style={{ fontSize: '14px', color: '#666', margin: '5px 0' }}>New Regime + AI</p>
-                            <div style={{ width: '100%', height: '30px', background: '#7ed957', borderRadius: '5px', marginBottom: '10px' }}></div>
-                            <p style={{ fontSize: '12px', color: '#888' }}>₹96,000 Tax (Save ₹24K!)</p>
+                        
+                        <div style={{ marginBottom: '20px', textAlign: 'left' }}>
+                            <label style={{ display: 'block', fontSize: '14px', color: '#888', marginBottom: '5px' }}>Deductions (80C, etc.) (₹)</label>
+                            <input 
+                                type="number" 
+                                value={deductions} 
+                                onChange={(e) => setDeductions(Number(e.target.value))} 
+                                style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '16px' }} 
+                            />
                         </div>
-                        <div style={{ width: '100%', height: '40px', background: 'linear-gradient(135deg, #7ed957, #5cb85c)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '12px', fontWeight: 'bold' }}>
-                            Download Your Report
-                        </div>
+                        
+                        <button 
+                            onClick={handleCalculate}
+                            style={{ 
+                                width: '100%', padding: '12px', background: '#7ed957', color: 'white', border: 'none', 
+                                borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', marginBottom: '20px' 
+                            }}
+                        >
+                            Calculate Taxes
+                        </button>
+
+                        {showResults && (
+                            <div style={{ background: '#f8f9fa', borderRadius: '10px', padding: '15px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                                    <span>Old Regime Tax:</span>
+                                    <strong style={{ color: '#e74c3c' }}>₹{Math.round(taxOld).toLocaleString()}</strong>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                                    <span>New Regime Tax:</span>
+                                    <strong style={{ color: '#7ed957' }}>₹{Math.round(taxNew).toLocaleString()}</strong>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', color: savings > 0 ? '#7ed957' : '#e74c3c' }}>
+                                    <span>Savings with New:</span>
+                                    <strong>₹{Math.round(savings).toLocaleString()}</strong>
+                                </div>
+                                <button 
+                                    onClick={() => navigate('/guest-calculator')}
+                                    style={{ 
+                                        width: '100%', padding: '10px', background: 'linear-gradient(135deg, #7ed957, #5cb85c)', color: 'white', border: 'none', 
+                                        borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', marginTop: '10px' 
+                                    }}
+                                >
+                                    Unlock Full AI Insights
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -150,8 +262,7 @@ const LandingPage = () => {
 const FeatureCard = ({ icon, title, desc }) => (
     <div style={{ 
         padding: '30px', borderRadius: '15px', background: '#f8f9fa', textAlign: 'center', 
-        transition: 'all 0.3s ease', cursor: 'pointer',
-        ':hover': { transform: 'translateY(-5px)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' } // Note: Inline styles can't do :hover; add CSS class for this in real app
+        transition: 'all 0.3s ease', cursor: 'pointer'
     }}>
         <div style={{ fontSize: '40px', marginBottom: '20px' }}>{icon}</div>
         <h3 style={{ marginBottom: '10px', color: '#2c3e50' }}>{title}</h3>

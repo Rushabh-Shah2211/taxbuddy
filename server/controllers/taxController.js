@@ -72,6 +72,7 @@ const calculateCGTax = (cg) => {
     return tax; 
 };
 
+// --- BASE TAX (No Surcharge/Cess) ---
 const calculateSlabTaxRaw = (taxableIncome, regime, ageGroup) => {
     let tax = 0;
     let income = Math.max(0, Number(taxableIncome) || 0);
@@ -99,6 +100,7 @@ const calculateSlabTaxRaw = (taxableIncome, regime, ageGroup) => {
     return tax;
 };
 
+// --- SURCHARGE & MARGINAL RELIEF LOGIC ---
 const calculateFinalTax = (income, baseTax, regime, ageGroup) => {
     let surchargeRate = 0;
     if (income > 50000000 && regime === 'Old') surchargeRate = 0.37;
@@ -109,6 +111,7 @@ const calculateFinalTax = (income, baseTax, regime, ageGroup) => {
     let surcharge = baseTax * surchargeRate;
     let totalTaxWithSurcharge = baseTax + surcharge;
 
+    // Marginal Relief
     let limit = 0;
     if (income > 50000000 && regime === 'Old') limit = 50000000;
     else if (income > 20000000) limit = 20000000;
@@ -116,7 +119,9 @@ const calculateFinalTax = (income, baseTax, regime, ageGroup) => {
     else if (income > 5000000) limit = 5000000;
 
     if (limit > 0) {
+        // Tax at the exact limit
         let taxAtLimit = calculateSlabTaxRaw(limit, regime, ageGroup);
+        // Surcharge at the limit
         let surchargeAtLimitRate = 0;
         if (limit > 50000000 && regime === 'Old') surchargeAtLimitRate = 0.37;
         else if (limit > 20000000) surchargeAtLimitRate = 0.25;
@@ -131,6 +136,8 @@ const calculateFinalTax = (income, baseTax, regime, ageGroup) => {
             totalTaxWithSurcharge = maxTaxPayable; 
         }
     }
+    
+    // Add 4% Cess
     return totalTaxWithSurcharge * 1.04;
 };
 
@@ -262,14 +269,19 @@ const calculateTax = async (req, res) => {
             ];
         }
 
-        // Prepare Detailed Breakdown Object for Email/Frontend
-        // Note: We need to pass the raw amounts calculated above
+        // --- FIX: GENERATE BREAKDOWN FOR EMAIL ---
         const detailedBreakdown = {
-            salary: Math.round(totalSalaryTaxable),
-            business: Math.round(businessIncome),
-            other: Math.round(otherSrcIncome),
-            capitalGains: Math.round(cgSlabIncome + (income.capitalGains?.shares?.stcg111a || 0) + (income.capitalGains?.shares?.ltcg112a || 0) + (income.capitalGains?.property?.ltcg || 0)), // Approx for display
-            houseProperty: Math.round(hpIncome),
+            salary: Math.round(totalSalaryTaxable || 0),
+            business: Math.round(businessIncome || 0),
+            other: Math.round(otherSrcIncome || 0),
+            // Sum of all CG components
+            capitalGains: Math.round(
+                (Number(cgSlabIncome) || 0) + 
+                (Number(income.capitalGains?.shares?.stcg111a) || 0) + 
+                (Number(income.capitalGains?.shares?.ltcg112a) || 0) + 
+                (Number(income.capitalGains?.property?.ltcg) || 0)
+            ),
+            houseProperty: Math.round(hpIncome || 0),
             tds: Number(taxesPaid?.tds) || 0,
             advanceTax: Number(taxesPaid?.advanceTax) || 0,
             selfAssessment: Number(taxesPaid?.selfAssessment) || 0
@@ -293,7 +305,7 @@ const calculateTax = async (req, res) => {
             recommendation,
             suggestions: [],
             advanceTaxSchedule,
-            detailedBreakdown // Pass this to frontend so it can pass it back to email endpoint
+            detailedBreakdown // <--- THIS WAS MISSING, NOW ADDED
         });
 
     } catch (error) {
@@ -320,12 +332,11 @@ const aiTaxAdvisor = async (req, res) => {
     res.json({ response: "I am a local tax assistant. Please ask about 80C or Tax Regimes." });
 };
 
-// --- UPDATED EMAIL REPORT FUNCTION ---
+// --- EMAIL REPORT ---
 const emailReport = async (req, res) => {
-    // Expect detailedBreakdown in the request body now
     const { email, name, financialYear, netPayable, taxSummary, breakdown } = req.body;
     
-    // Default values if breakdown is missing (for older frontend versions)
+    // Default to 0 if breakdown is missing
     const b = breakdown || {
         salary: 0, business: 0, other: 0, capitalGains: 0, houseProperty: 0,
         tds: 0, advanceTax: 0, selfAssessment: 0
