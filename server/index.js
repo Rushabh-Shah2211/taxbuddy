@@ -1,40 +1,42 @@
 // server/index.js
 const express = require('express');
-const dotenv = require('dotenv'); // 1. Load the tool
 const cors = require('cors');
-
-// 2. CONFIG MUST BE HERE (Top of the file)
-dotenv.config(); 
-
-// 3. NOW it is safe to import files that use the keys
-const connectDB = require('./config/db');
-const taxRoutes = require('./routes/taxRoutes');
+const dotenv = require('dotenv');
+const connectDB = require('./config/db'); // Assuming you have this
 const authRoutes = require('./routes/authRoutes');
-const paymentRoutes = require('./routes/paymentRoutes');
-const adminRoutes = require('./routes/adminRoutes'); 
+const taxRoutes = require('./routes/taxRoutes');
 
-// 4. Connect to Database
+// Load env vars
+dotenv.config();
+
+// Connect to Database
 connectDB();
 
 const app = express();
 
-app.use(express.json());
+// --- CRITICAL FIX: INCREASE PAYLOAD LIMIT ---
+// This allows large files (like PDFs) to be sent in the request body
+app.use(express.json({ limit: '50mb' })); 
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Enable CORS
 app.use(cors());
 
-// 5. Use Routes
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tax', taxRoutes);
-app.use('/api/payment', paymentRoutes);
-app.use('/api/admin', adminRoutes); 
-app.use(express.json({ limit: '10mb' })); // Increase to 10MB
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Base Route
 app.get('/', (req, res) => {
-    res.send('Tax SaaS API is running...');
+    res.send('Artha API is running...');
+});
+
+// Error Handling Middleware
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ message: 'Server Error' });
 });
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
