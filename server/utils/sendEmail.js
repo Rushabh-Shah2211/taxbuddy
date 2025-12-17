@@ -1,24 +1,31 @@
-// server/utils/sendEmail.js
 const nodemailer = require('nodemailer');
 
 const sendEmail = async (options) => {
-    // Create a transporter (using Gmail for now)
+    // 1. Create Transporter
     const transporter = nodemailer.createTransport({
-        service: 'gmail', // You can switch to SendGrid/Outlook later
+        service: 'gmail', // Built-in service for Gmail
+        // If using another provider (Outlook, Yahoo), comment out 'service' and use 'host'/'port' below:
+        // host: process.env.EMAIL_HOST, 
+        // port: process.env.EMAIL_PORT, // 587 for TLS, 465 for SSL
+        // secure: false, // true for 465, false for other ports
         auth: {
-            user: process.env.EMAIL_USER, // Your Gmail
-            pass: process.env.EMAIL_PASS  // Your Gmail App Password (Not real password)
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+        },
+        tls: {
+            rejectUnauthorized: false // Helps avoid some certificate errors on cloud servers
         }
     });
 
-    // Define email options
+    // 2. Define Email Options
     const mailOptions = {
-        from: `Artha Support <${process.env.EMAIL_USER}>`,
+        from: `"Artha Tax App" <${process.env.EMAIL_USER}>`,
         to: options.email,
         subject: options.subject,
-        html: options.message // We will send HTML emails
+        html: options.message,
     };
 
+    // 3. Send Email
     await transporter.sendMail(mailOptions);
 };
 
