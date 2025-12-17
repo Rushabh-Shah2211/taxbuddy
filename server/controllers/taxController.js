@@ -334,69 +334,48 @@ const aiTaxAdvisor = async (req, res) => {
 
 // --- EMAIL REPORT ---
 const emailReport = async (req, res) => {
-    const { email, name, financialYear, netPayable, taxSummary, breakdown } = req.body;
-    
-    // Default to 0 if breakdown is missing
-    const b = breakdown || {
-        salary: 0, business: 0, other: 0, capitalGains: 0, houseProperty: 0,
-        tds: 0, advanceTax: 0, selfAssessment: 0
-    };
-
+    // We now expect 'pdfAttachment' (Base64 string) from the client
+    const { email, name, financialYear, pdfAttachment } = req.body;
     const dateStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 
     try {
         const message = `
             <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; line-height: 1.6;">
-                <h2 style="color: #2e7d32; border-bottom: 2px solid #2e7d32; padding-bottom: 10px;">Artha Tax Report</h2>
-                <p>Hi ${name},</p>
-                <p>Here is the summary of your tax calculation for <strong>FY ${financialYear}</strong> made on ${dateStr}.</p>
+                <h2 style="color: #2e7d32;">Artha Tax Report</h2>
+                <p>Hi ${name || 'User'},</p>
                 
-                <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #ddd;">
-                    <h3 style="margin-top: 0; color: #444;">Summary of calculation:</h3>
-                    
-                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
-                        <tr><td style="padding: 5px 0;">Salary Income:</td><td style="text-align: right; font-weight: bold;">₹${b.salary.toLocaleString('en-IN')}</td></tr>
-                        <tr><td style="padding: 5px 0;">Business Income:</td><td style="text-align: right; font-weight: bold;">₹${b.business.toLocaleString('en-IN')}</td></tr>
-                        <tr><td style="padding: 5px 0;">Income from Other Sources:</td><td style="text-align: right; font-weight: bold;">₹${b.other.toLocaleString('en-IN')}</td></tr>
-                        <tr><td style="padding: 5px 0;">Capital Gains:</td><td style="text-align: right; font-weight: bold;">₹${b.capitalGains.toLocaleString('en-IN')}</td></tr>
-                        <tr><td style="padding: 5px 0;">House Property Income:</td><td style="text-align: right; font-weight: bold;">₹${b.houseProperty.toLocaleString('en-IN')}</td></tr>
-                        <tr style="border-top: 1px solid #ccc;"><td style="padding: 8px 0; font-weight: bold;">Total Income:</td><td style="text-align: right; font-weight: bold; color: #2e7d32;">₹${taxSummary.grossTotalIncome.toLocaleString('en-IN')}</td></tr>
-                    </table>
-
-                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
-                        <tr><td style="padding: 5px 0;">Old Regime Tax:</td><td style="text-align: right;">₹${taxSummary.oldRegimeTax.toLocaleString('en-IN')}</td></tr>
-                        <tr><td style="padding: 5px 0;">New Regime Tax:</td><td style="text-align: right;">₹${taxSummary.newRegimeTax.toLocaleString('en-IN')}</td></tr>
-                    </table>
-
-                    <hr style="border: 0; border-top: 1px dashed #ccc; margin: 15px 0;">
-
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <tr><td style="padding: 5px 0;">TDS:</td><td style="text-align: right;">₹${b.tds.toLocaleString('en-IN')}</td></tr>
-                        <tr><td style="padding: 5px 0;">Self Assessment Tax:</td><td style="text-align: right;">₹${b.selfAssessment.toLocaleString('en-IN')}</td></tr>
-                        <tr><td style="padding: 5px 0;">Advance Tax:</td><td style="text-align: right;">₹${b.advanceTax.toLocaleString('en-IN')}</td></tr>
-                        <tr style="font-size: 18px; color: #d32f2f; font-weight: bold;"><td style="padding-top: 15px;">Net Payable:</td><td style="text-align: right; padding-top: 15px;">₹${netPayable.toLocaleString('en-IN')}</td></tr>
-                    </table>
-                </div>
-
-                <p style="font-size: 14px;"><strong>Recommendation:</strong> You should opt for <strong>${taxSummary.recommendation}</strong></p>
+                <p>Thank you for using Artha for your tax planning.</p>
+                <p>Please find attached the detailed PDF report of your tax calculation for <strong>FY ${financialYear}</strong>, generated on ${dateStr}.</p>
                 
-                <p style="font-size: 11px; color: #888; margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px;">
-                    Disclaimer: This report is based on user-provided data. Consult a professional for accurate filing.
+                <p>If you wish to amend your calculation or view historical data, please visit us at:</p>
+                <p><a href="https://taxbuddy-delta.vercel.app/" style="background-color: #2e7d32; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; font-weight: bold;">Go to Artha Dashboard</a></p>
+                
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+                
+                <p style="font-size: 12px; color: #666;">
+                    <strong>Contact Us:</strong><br>
+                    Email: support@artha.com
                 </p>
-                <p style="margin-top: 20px;">Regards,<br><strong>Team Artha</strong></p>
+                
+                <p style="font-size: 11px; color: #888;">
+                    Disclaimer: This report is generated based on user-provided data. Consult a professional for accurate filing.
+                </p>
+                
+                <p>Regards,<br><strong>Team Artha</strong></p>
             </div>
         `;
 
         await sendEmail({
             email: email,
-            subject: `Artha Tax Report - FY ${financialYear}`,
-            message: message
+            subject: `Artha Tax Report (PDF) - FY ${financialYear}`,
+            message: message,
+            attachment: pdfAttachment // Pass the Base64 string to the mailer
         });
 
-        res.json({ success: true, message: 'Email sent successfully' });
+        res.json({ success: true, message: 'Email sent successfully with PDF.' });
     } catch (error) {
         console.error("Email Error:", error);
-        res.status(500).json({ message: 'Email could not be sent' });
+        res.status(500).json({ message: 'Email could not be sent.' });
     }
 };
 

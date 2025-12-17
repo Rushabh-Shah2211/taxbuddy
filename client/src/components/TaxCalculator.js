@@ -161,31 +161,42 @@ const TaxCalculator = ({ isGuest = false }) => {
     };
 
     const handleEmailReport = async () => {
+        if(isGuest) { alert("🔒 Please Login to email reports."); return; }
         if(!user || !result) return;
         
         const btn = document.getElementById('emailBtn');
         const originalText = btn.innerText;
-        btn.innerText = "Sending...";
+        btn.innerText = "Generating PDF...";
         btn.disabled = true;
         
         try {
-            // Use the correct API URL
+            // 1. Generate PDF Base64
+            // Pass 'true' as the 4th argument to get the data string instead of saving
+            const pdfDataUri = generateTaxReportPDF(user, formData, result, true);
+            
+            // Remove the data URI prefix to get pure Base64 (needed for some mail APIs)
+            // Format is usually "data:application/pdf;base64,JVBERi0..."
+            const pdfBase64 = pdfDataUri.split(',')[1];
+
+            btn.innerText = "Sending Email...";
+
+            // 2. Send to Backend
             await axios.post('https://taxbuddy-o5wu.onrender.com/api/tax/email-report', {
                 email: user.email,
                 name: user.name,
                 financialYear: formData.financialYear,
-                netPayable: result.netPayable,
-                taxSummary: result
+                pdfAttachment: pdfBase64 // Send the file data
             });
-            alert("✅ Report emailed successfully to " + user.email);
+            alert("✅ Report (PDF) emailed successfully to " + user.email);
         } catch (error) {
-            console.error(error); // Log error to console for debugging
-            alert("❌ Failed to send email. Check console for details.");
+            console.error(error);
+            alert("❌ Failed to send email. Check console.");
         } finally {
             btn.innerText = originalText;
             btn.disabled = false;
         }
     };
+    
     const logout = () => { localStorage.removeItem('userInfo'); navigate('/'); };
     const getMonthlyTDS = () => {
         if (!result || result.netPayable <= 0) return 0;

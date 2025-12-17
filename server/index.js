@@ -26,6 +26,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/tax', taxRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/admin', adminRoutes); 
+app.use(express.json({ limit: '10mb' })); // Increase to 10MB
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.get('/', (req, res) => {
     res.send('Tax SaaS API is running...');
