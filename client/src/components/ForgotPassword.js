@@ -59,7 +59,7 @@ const ForgotPassword = () => {
                 )}
 
                 <div className="auth-footer">
-                    <Link to="/">Back to Login</Link>
+                    <Link to="/Login">Back to Login</Link>
                 </div>
             </div>
         </div>

@@ -1,6 +1,7 @@
+// server/controllers/authController.js
 const User = require('../models/User');
 const TaxRecord = require('../models/TaxRecord');
-const ChatRecord = require('../models/ChatRecord'); // If you have this model
+// const ChatRecord = require('../models/ChatRecord'); // Uncomment if model exists
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
@@ -81,33 +82,60 @@ const forgotPassword = async (req, res) => {
         const user = await User.findOne({ email });
         if (!user) return res.status(404).json({ message: "Email not found" });
 
+        // Generate Token
         const resetToken = crypto.randomBytes(20).toString('hex');
+        
+        // Hash token and save to DB
         user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-        user.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
+        user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 Minutes
 
         await user.save();
 
+        // Create Reset URL
+        // Ensure this matches your frontend URL structure
         const resetUrl = `https://taxbuddy-delta.vercel.app/reset-password/${resetToken}`;
+
+        // Create Styled HTML Message
         const message = `
-            <h1>Password Reset Request</h1>
-            <p>Click below to reset your password:</p>
-            <a href="${resetUrl}">${resetUrl}</a>
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px;">
+                <h2 style="color: #2e7d32; text-align: center;">Artha Password Reset</h2>
+                <p>Hi ${user.name},</p>
+                <p>You requested a password reset. Please click the button below to set a new password:</p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="${resetUrl}" style="background-color: #2e7d32; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">Reset Password</a>
+                </div>
+                
+                <p>Or copy and paste this link into your browser:</p>
+                <p style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; word-break: break-all; font-size: 12px; color: #555;">
+                    <a href="${resetUrl}">${resetUrl}</a>
+                </p>
+                
+                <p style="font-size: 13px; color: #777;">This link expires in 10 minutes.</p>
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="font-size: 11px; color: #999; text-align: center;">
+                    If you did not request this email, you can safely ignore it.
+                </p>
+            </div>
         `;
 
         try {
             await sendEmail({
                 email: user.email,
-                subject: 'Artha Password Reset',
-                message
+                subject: 'Artha Password Reset Request', // Clear subject line
+                message: message
             });
-            res.json({ success: true, data: "Email sent" });
+
+            res.json({ success: true, data: "Reset link sent to email" });
         } catch (error) {
+            console.error("Forgot Password Email Error:", error);
             user.resetPasswordToken = undefined;
             user.resetPasswordExpire = undefined;
             await user.save();
-            return res.status(500).json({ message: "Email send failed" });
+            return res.status(500).json({ message: "Email could not be sent. Please try again later." });
         }
     } catch (error) {
+        console.error("Forgot Password System Error:", error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -121,7 +149,7 @@ const resetPassword = async (req, res) => {
             resetPasswordExpire: { $gt: Date.now() }
         });
 
-        if (!user) return res.status(400).json({ message: "Invalid Token" });
+        if (!user) return res.status(400).json({ message: "Invalid or Expired Token" });
 
         const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(req.body.password, salt);
@@ -129,7 +157,7 @@ const resetPassword = async (req, res) => {
         user.resetPasswordExpire = undefined;
 
         await user.save();
-        res.json({ success: true, message: "Password Updated" });
+        res.json({ success: true, message: "Password Updated Successfully" });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -145,7 +173,7 @@ const deleteUser = async (req, res) => {
             await TaxRecord.deleteMany({ user: user._id });
             
             // 2. Delete all Chat Records
-            if (ChatRecord) await ChatRecord.deleteMany({ user: user._id });
+            // if (ChatRecord) await ChatRecord.deleteMany({ user: user._id }); // Uncomment when model exists
 
             // 3. Delete User
             await User.findByIdAndDelete(user._id);
@@ -165,5 +193,5 @@ module.exports = {
     updateProfile, 
     forgotPassword, 
     resetPassword, 
-    deleteUser // <--- Export this
+    deleteUser 
 };
