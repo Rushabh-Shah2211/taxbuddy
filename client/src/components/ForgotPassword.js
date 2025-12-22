@@ -29,7 +29,7 @@ const ForgotPassword = () => {
         <div className="auth-wrapper">
             <div className="auth-card">
                 <div className="logo-section">
-                    <img src={logo} alt="Logo" className="auth-logo" style={{width: '60px'}} />
+                    <img src={logo} alt="Logo" className="auth-logo" style={{width: '100px'}} />
                     <h2>Reset Password</h2>
                     {!submitted ? <p>Enter your email to receive instructions</p> : null}
                 </div>
