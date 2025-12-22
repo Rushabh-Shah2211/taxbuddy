@@ -1,11 +1,11 @@
-// server/models/User.js
 const mongoose = require('mongoose');
 
 const userSchema = mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    // NEW: Add Role to distinguish Admin vs User
+    
+    // 👇 THIS IS CRITICAL. WITHOUT THIS, ADMIN LOGIN FAILS.
     role: { type: String, enum: ['user', 'admin'], default: 'user' }, 
     
     resetPasswordToken: String,
