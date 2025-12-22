@@ -4,6 +4,7 @@ const TaxRecord = require('../models/TaxRecord');
 const ChatRecord = require('../models/ChatRecord'); // Assuming this exists
 const bcrypt = require('bcryptjs');
 
+
 // 1. Admin Login (Database Check)
 const adminLogin = async (req, res) => {
     try {
@@ -29,23 +30,29 @@ const createAdmin = async (req, res) => {
     try {
         const { name, email, password } = req.body;
         
-        // Check if user exists
-        const userExists = await User.findOne({ email });
-        if (userExists) return res.status(400).json({ message: 'User already exists' });
-
-        // Hash Password
+        let user = await User.findOne({ email });
+        
+        // Hash the new password
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Create Admin User
-        const user = await User.create({
-            name, 
-            email, 
-            password: hashedPassword,
-            role: 'admin' // Force role to admin
-        });
-
-        res.status(201).json({ message: "Admin Created Successfully", user });
+        if (user) {
+            // OPTION 1: User exists -> Upgrade them to Admin
+            user.password = hashedPassword;
+            user.role = 'admin';
+            user.name = name || user.name; // Update name if provided
+            await user.save();
+            return res.status(200).json({ message: "Existing User Upgraded to Admin", user });
+        } else {
+            // OPTION 2: New User -> Create as Admin
+            user = await User.create({
+                name, 
+                email, 
+                password: hashedPassword,
+                role: 'admin'
+            });
+            return res.status(201).json({ message: "Admin Created Successfully", user });
+        }
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
