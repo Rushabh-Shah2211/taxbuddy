@@ -4,13 +4,20 @@ const mongoose = require('mongoose');
 const taxRecordSchema = mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'User' },
     
-    // Page 1: Basic Info
+    // Page 1: Basic Info & Entity Details
+    entityType: { 
+        type: String, 
+        enum: ['Individual', 'HUF', 'Company', 'Firm', 'LLP', 'Trust', 'AOP', 'AJP'], 
+        default: 'Individual' 
+    },
     financialYear: { type: String, default: "2025-2026" },
+    
+    // Only relevant for Individuals
     ageGroup: { type: String, enum: ['<60', '60-80', '>80'], default: '<60' },
     residentialStatus: { type: String, enum: ['Resident', 'NRI'], default: 'Resident' },
 
     income: {
-        // Page 2: Salary
+        // Page 2: Salary (Normally Individual only)
         salary: {
             enabled: { type: Boolean, default: false },
             detailedMode: { type: Boolean, default: false },
@@ -28,7 +35,7 @@ const taxRecordSchema = mongoose.Schema({
             details: { type: Object, default: {} } 
         },
         
-        // Page 3: Business (Updated for Multiple)
+        // Page 3: Business
         business: {
             enabled: { type: Boolean, default: false },
             businesses: [{
@@ -49,7 +56,7 @@ const taxRecordSchema = mongoose.Schema({
             municipalTaxes: { type: Number, default: 0 }
         },
 
-        // Page 6: Capital Gains (New Structure)
+        // Page 6: Capital Gains
         capitalGains: {
             enabled: { type: Boolean, default: false },
             shares: {
@@ -70,7 +77,7 @@ const taxRecordSchema = mongoose.Schema({
         }
     },
 
-    // Page 7: Detailed Deductions (New Structure)
+    // Page 7: Deductions
     deductions: {
         enabled: { type: Boolean, default: false },
         detailedMode: { type: Boolean, default: false },
