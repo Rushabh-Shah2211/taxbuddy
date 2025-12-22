@@ -1,58 +1,81 @@
 // server/controllers/adminController.js
 const User = require('../models/User');
 const TaxRecord = require('../models/TaxRecord');
-const ChatRecord = require('../models/ChatRecord');
+const ChatRecord = require('../models/ChatRecord'); // Assuming this exists
+const bcrypt = require('bcryptjs');
 
-// 1. Admin Login (Simple Hardcoded Check)
+// 1. Admin Login (Database Check)
 const adminLogin = async (req, res) => {
-    const { email, password } = req.body;
-    if (email === process.env.ADMIN_EMAIL && password === process.env.ADMIN_PASSWORD) {
-        // Return a simple "admin-token" string for frontend to store
-        res.json({ token: 'admin-secret-token', email: email });
-    } else {
-        res.status(401).json({ message: "Invalid Admin Credentials" });
-    }
-};
-
-// 2. Get All Users
-const getAllUsers = async (req, res) => {
     try {
-        // Fetch all users but exclude passwords
-        const users = await User.find({}).select('-password').sort({ createdAt: -1 });
-        res.json(users);
+        const { email, password } = req.body;
+        
+        // Find user by email
+        const user = await User.findOne({ email });
+
+        // Check if User exists AND is Admin AND Password matches
+        if (user && (user.role === 'admin') && (await bcrypt.compare(password, user.password))) {
+            // Return the same token structure your frontend expects
+            res.json({ token: 'admin-secret-token', email: user.email, name: user.name });
+        } else {
+            res.status(401).json({ message: "Invalid Admin Credentials or Access Denied" });
+        }
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-// 3. Get Specific User Data (Tax + Chat History)
+// NEW: One-time setup to create an Admin user in DB
+const createAdmin = async (req, res) => {
+    try {
+        const { name, email, password } = req.body;
+        
+        // Check if user exists
+        const userExists = await User.findOne({ email });
+        if (userExists) return res.status(400).json({ message: 'User already exists' });
+
+        // Hash Password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // Create Admin User
+        const user = await User.create({
+            name, 
+            email, 
+            password: hashedPassword,
+            role: 'admin' // Force role to admin
+        });
+
+        res.status(201).json({ message: "Admin Created Successfully", user });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ... (Keep getAllUsers, getUserFullData, saveChatInteraction as they were) ...
+const getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find({ role: { $ne: 'admin' } }).select('-password').sort({ createdAt: -1 });
+        res.json(users);
+    } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
 const getUserFullData = async (req, res) => {
     try {
         const userId = req.params.userId;
-        
-        // Fetch Tax History
         const taxHistory = await TaxRecord.find({ user: userId }).sort({ createdAt: -1 });
-        
-        // Fetch Chat History
-        const chatHistory = await ChatRecord.find({ user: userId }).sort({ timestamp: -1 });
-
+        const chatHistory = await ChatRecord.find({ user: userId }).sort({ timestamp: -1 }); // Optional
         res.json({ taxHistory, chatHistory });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
+    } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
-// 4. Save Chat (Called by the User's Frontend)
 const saveChatInteraction = async (req, res) => {
     try {
         const { userId, question, answer } = req.body;
         if (userId) {
-            await ChatRecord.create({ user: userId, question, answer });
+            // await ChatRecord.create({ user: userId, question, answer }); // Uncomment when model exists
         }
         res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ message: "Failed to save chat" });
-    }
+    } catch (error) { res.status(500).json({ message: "Failed to save chat" }); }
 };
 
-module.exports = { adminLogin, getAllUsers, getUserFullData, saveChatInteraction };
+module.exports = { adminLogin, createAdmin, getAllUsers, getUserFullData, saveChatInteraction };

@@ -5,8 +5,9 @@ const userSchema = mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
+    // NEW: Add Role to distinguish Admin vs User
+    role: { type: String, enum: ['user', 'admin'], default: 'user' }, 
     
-    // NEW FIELDS FOR RESET PASSWORD
     resetPasswordToken: String,
     resetPasswordExpire: Date
 
