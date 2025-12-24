@@ -251,7 +251,12 @@ const LandingPage = () => {
             {/* Footer */}
             <footer style={{ background: '#1a252f', color: '#ccc', padding: '40px 20px', textAlign: 'center' }}>
                 <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-                    <p>&copy; 2025 Artha by RB. All rights reserved. | <Link to="/privacy" style={{ color: '#7ed957' }}>Privacy</Link> | <Link to="/terms" style={{ color: '#7ed957' }}>Terms</Link></p>
+                    <p>&copy; 2025 Artha by RB. All rights reserved. | 
+                        <Link to="/privacy-policy">Privacy Policy</Link>
+                        <Link to="/terms-of-service">Terms of Service</Link>
+                        <Link to="/cookie-policy">Cookie Policy</Link>
+                        <Link to="/data-processing-agreement">DPA</Link>
+                    </p>            
                     <p style={{ marginTop: '10px', fontSize: '14px' }}>Ready to reclaim your tax season? <button onClick={() => navigate('/guest-calculator')} style={{ background: 'none', border: 'none', color: '#7ed957', cursor: 'pointer', fontWeight: 'bold' }}>Start Free Now</button></p>
                 </div>
             </footer>

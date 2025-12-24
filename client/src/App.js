@@ -15,6 +15,12 @@ import History from './components/History';
 import CookieBanner from './components/CookieBanner';
 import Legal from './components/Legal';
 
+// --- NEW IMPORTS ---
+import PrivacyPolicy from './components/legal/PrivacyPolicy';
+import TermsOfService from './components/legal/TermsOfService';
+import CookiePolicy from './components/legal/CookiePolicy';
+import DataProcessingAgreement from './components/legal/DataProcessingAgreement';
+
 // --- IMPORT ADMIN COMPONENTS ---
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
@@ -23,7 +29,7 @@ function App() {
   return (
     <Router>
       <div className="App">
-        <CookieBanner /> {/* Add this here so it shows on all pages */}
+        <CookieBanner /> 
         <Routes>
           {/* --- Public Routes --- */}
           <Route path="/" element={<LandingPage />} />
@@ -32,20 +38,28 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password/:resetToken" element={<ResetPassword />} />
           
-          {/* Guest Route */}
-          <Route path="/guest-calculator" element={<TaxCalculator isGuest={true} />} /> {/* Pass prop */}
+          {/* New Public Legal Routes */}
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsOfService />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms-of-service" element={<TermsOfService />} />
+          <Route path="/cookie-policy" element={<CookiePolicy />} />
+          <Route path="/data-processing-agreement" element={<DataProcessingAgreement />} />
 
+          {/* Guest Route */}
+          <Route path="/guest-calculator" element={<TaxCalculator isGuest={true} />} />   
           {/* --- Main App Routes --- */}
           <Route path="/calculator" element={<TaxCalculator />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/history" element={<History />} />
           <Route path="/profile" element={<Profile />} />
+          
+          {/* Internal Legal Route (Dashboard variant) */}
+          <Route path="/legal" element={<Legal />} />
 
-          {/* --- ADMIN ROUTES (This is what was missing) --- */}
+          {/* --- ADMIN ROUTES --- */}
           <Route path="/admin" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
-
-          <Route path="/legal" element={<Legal />} />
       </Routes>
       </div>
     </Router>
