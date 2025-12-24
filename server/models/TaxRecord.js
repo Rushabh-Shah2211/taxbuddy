@@ -10,6 +10,9 @@ const taxRecordSchema = mongoose.Schema({
         enum: ['Individual', 'HUF', 'Company', 'Firm', 'LLP', 'Trust', 'AOP', 'AJP'], 
         default: 'Individual' 
     },
+    // New flag for Section 115BAB (Manufacturing Companies)
+    opted115BAB: { type: Boolean, default: false }, 
+    
     financialYear: { type: String, default: "2025-2026" },
     
     // Only relevant for Individuals
@@ -22,7 +25,7 @@ const taxRecordSchema = mongoose.Schema({
             enabled: { type: Boolean, default: false },
             detailedMode: { type: Boolean, default: false },
             
-            // Taxable Amounts (Numbers)
+            // Taxable Amounts
             basic: { type: Number, default: 0 },
             hra: { type: Number, default: 0 },
             gratuity: { type: Number, default: 0 },
@@ -31,7 +34,6 @@ const taxRecordSchema = mongoose.Schema({
             perquisites: { type: Number, default: 0 },
             allowances: { type: Number, default: 0 },
             
-            // Raw Inputs (Object)
             details: { type: Object, default: {} } 
         },
         
@@ -39,11 +41,11 @@ const taxRecordSchema = mongoose.Schema({
         business: {
             enabled: { type: Boolean, default: false },
             businesses: [{
-                type: { type: String, default: "Presumptive" }, // Presumptive or Regular
+                type: { type: String, default: "Presumptive" },
                 name: String,
                 turnover: Number,
                 profit: Number,
-                presumptiveRate: Number // for 44AD/ADA
+                presumptiveRate: Number
             }]
         },
 
@@ -59,15 +61,9 @@ const taxRecordSchema = mongoose.Schema({
         // Page 6: Capital Gains
         capitalGains: {
             enabled: { type: Boolean, default: false },
-            shares: {
-                stcg111a: { type: Number, default: 0 }, // Short Term (15%/20%)
-                ltcg112a: { type: Number, default: 0 }  // Long Term (>1L 10%/12.5%)
-            },
-            property: {
-                ltcg: { type: Number, default: 0 },     // 20% / 12.5%
-                stcg: { type: Number, default: 0 }      // Slab
-            },
-            other: { type: Number, default: 0 }         // Slab
+            shares: { stcg111a: { type: Number, default: 0 }, ltcg112a: { type: Number, default: 0 } },
+            property: { ltcg: { type: Number, default: 0 }, stcg: { type: Number, default: 0 } },
+            other: { type: Number, default: 0 }
         },
 
         // Page 5: Other Income

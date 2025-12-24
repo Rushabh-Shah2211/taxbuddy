@@ -19,10 +19,11 @@ const TaxCalculator = ({ isGuest = false }) => {
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(false);
 
-    // Initial State - Added entityType
+    // Initial State - Added opted115BAB
     const [formData, setFormData] = useState({
         financialYear: '2025-2026', 
-        entityType: 'Individual', // NEW FIELD
+        entityType: 'Individual', 
+        opted115BAB: false, // NEW FIELD: Section 115BAB for Manufacturing Companies
         ageGroup: '<60',
         residentialStatus: 'Resident',
         salaryEnabled: false, 
@@ -61,7 +62,8 @@ const TaxCalculator = ({ isGuest = false }) => {
 
             setFormData({
                 financialYear: rec.financialYear || '2025-2026',
-                entityType: rec.entityType || 'Individual', // Hydrate entityType
+                entityType: rec.entityType || 'Individual',
+                opted115BAB: rec.opted115BAB || false, // Hydrate 115BAB selection
                 ageGroup: rec.ageGroup || '<60',
                 residentialStatus: rec.residentialStatus || 'Resident',
                 salaryEnabled: sal.enabled || false,
@@ -92,7 +94,10 @@ const TaxCalculator = ({ isGuest = false }) => {
         }
     }, [navigate, location, isGuest]);
 
-    const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+    const handleChange = (e) => {
+        const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+        setFormData({ ...formData, [e.target.name]: value });
+    };
     
     // Helpers
     const addBusiness = () => setFormData({ ...formData, business: { ...formData.business, businesses: [...formData.business.businesses, { type: 'Presumptive', name: '', turnover: '', profit: '', presumptiveRate: '6' }] } });
@@ -116,8 +121,9 @@ const TaxCalculator = ({ isGuest = false }) => {
         const payload = {
             userId: user ? user._id : null, 
             financialYear: formData.financialYear,
-            entityType: formData.entityType, // INCLUDED IN PAYLOAD
-            ageGroup: formData.entityType === 'Individual' ? formData.ageGroup : undefined, // Only send ageGroup if Individual
+            entityType: formData.entityType,
+            opted115BAB: formData.entityType === 'Company' ? formData.opted115BAB : false, // Include in Payload
+            ageGroup: formData.entityType === 'Individual' ? formData.ageGroup : undefined, 
             residentialStatus: formData.residentialStatus,
             income: {
                 // If not individual, salary is disabled/empty
@@ -260,7 +266,7 @@ const TaxCalculator = ({ isGuest = false }) => {
                                 </select>
                             </div>
 
-                            {/* NEW: Nature of Entity */}
+                            {/* Nature of Entity */}
                             <div className="input-group">
                                 <label>Nature of Entity</label>
                                 <select name="entityType" value={formData.entityType} onChange={handleChange}>
@@ -274,6 +280,25 @@ const TaxCalculator = ({ isGuest = false }) => {
                                     <option value="AJP">Artificial Juridical Person</option>
                                 </select>
                             </div>
+
+                            {/* CONDITIONAL: Section 115BAB Checkbox (Only for Companies) */}
+                            {formData.entityType === 'Company' && (
+                                <div className="input-group" style={{gridColumn: '1 / -1', background: '#e8f5e9', padding: '10px', borderRadius: '8px', border: '1px solid #c3e6cb'}}>
+                                    <label className="checkbox-label" style={{display:'flex', alignItems:'center', gap:'10px', cursor:'pointer', fontWeight: '500', color: '#155724'}}>
+                                        <input
+                                            type="checkbox"
+                                            name="opted115BAB"
+                                            checked={formData.opted115BAB}
+                                            onChange={(e) => setFormData({...formData, opted115BAB: e.target.checked})}
+                                            style={{width:'18px', height:'18px'}}
+                                        />
+                                        <span>Opt for Section 115BAB (New Manufacturing Company - 15% Tax Rate)</span>
+                                    </label>
+                                    <div style={{fontSize: '12px', color: '#666', marginTop: '5px', marginLeft: '28px'}}>
+                                        *By checking this, you confirm the company is a new manufacturing unit set up after 1st October 2019 and registered before 31st March 2024.
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Conditionally Show Age Group only for Individuals */}
                             {formData.entityType === 'Individual' && (
@@ -298,7 +323,7 @@ const TaxCalculator = ({ isGuest = false }) => {
                     </div>
                 )}
                 
-                {/* STEP 2: SALARY (Only render if step is 2, though navigation logic skips this for non-individuals) */}
+                {/* STEP 2: SALARY */}
                 {step === 2 && formData.entityType === 'Individual' && (
                     <div className="fade-in">
                         <h3>💼 Salary Income</h3>
