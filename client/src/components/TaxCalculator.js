@@ -18,12 +18,15 @@ const TaxCalculator = ({ isGuest = false }) => {
     const [step, setStep] = useState(1);
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(false);
+    
+    // NEW: Parsing State for Form-16 Upload
+    const [parsing, setParsing] = useState(false);
 
-    // Initial State - Added opted115BAB
+    // Initial State
     const [formData, setFormData] = useState({
         financialYear: '2025-2026', 
         entityType: 'Individual', 
-        opted115BAB: false, // NEW FIELD: Section 115BAB for Manufacturing Companies
+        opted115BAB: false, 
         ageGroup: '<60',
         residentialStatus: 'Resident',
         salaryEnabled: false, 
@@ -63,7 +66,7 @@ const TaxCalculator = ({ isGuest = false }) => {
             setFormData({
                 financialYear: rec.financialYear || '2025-2026',
                 entityType: rec.entityType || 'Individual',
-                opted115BAB: rec.opted115BAB || false, // Hydrate 115BAB selection
+                opted115BAB: rec.opted115BAB || false,
                 ageGroup: rec.ageGroup || '<60',
                 residentialStatus: rec.residentialStatus || 'Resident',
                 salaryEnabled: sal.enabled || false,
@@ -99,6 +102,53 @@ const TaxCalculator = ({ isGuest = false }) => {
         setFormData({ ...formData, [e.target.name]: value });
     };
     
+    // --- NEW: Handle Form-16 Upload ---
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setParsing(true);
+        const uploadData = new FormData();
+        uploadData.append('file', file);
+
+        try {
+            const { data } = await axios.post('https://taxbuddy-o5wu.onrender.com/api/tax/parse-form16', uploadData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            // Auto-fill logic based on extracted data
+            setFormData(prev => ({
+                ...prev,
+                // 1. Financial Year
+                financialYear: data.financialYear || prev.financialYear,
+                
+                // 2. Salary (Map Gross Salary to Basic & Enable)
+                salaryEnabled: true,
+                basic: data.grossSalary || prev.basic,
+                
+                // 3. Deductions (Map 80C & Enable)
+                deductions: {
+                    ...prev.deductions,
+                    enabled: true,
+                    section80C: data.deductions80C || prev.deductions.section80C
+                },
+                
+                // 4. TDS
+                tds: data.tds || prev.tds
+            }));
+
+            alert(`✅ Auto-fill Successful!\n\nExtracted:\n- Gross Salary: ₹${data.grossSalary}\n- 80C Deductions: ₹${data.deductions80C}\n- TDS: ₹${data.tds}\n\nPlease verify the values in the next steps.`);
+
+        } catch (error) {
+            console.error("Form-16 Parse Error:", error);
+            alert("❌ Failed to parse Form-16. Please ensure it is a valid PDF or enter details manually.");
+        } finally {
+            setParsing(false);
+            // Clear input
+            e.target.value = null;
+        }
+    };
+
     // Helpers
     const addBusiness = () => setFormData({ ...formData, business: { ...formData.business, businesses: [...formData.business.businesses, { type: 'Presumptive', name: '', turnover: '', profit: '', presumptiveRate: '6' }] } });
     const removeBusiness = (index) => { const n = [...formData.business.businesses]; n.splice(index, 1); setFormData({ ...formData, business: { ...formData.business, businesses: n } }); };
@@ -122,11 +172,10 @@ const TaxCalculator = ({ isGuest = false }) => {
             userId: user ? user._id : null, 
             financialYear: formData.financialYear,
             entityType: formData.entityType,
-            opted115BAB: formData.entityType === 'Company' ? formData.opted115BAB : false, // Include in Payload
+            opted115BAB: formData.entityType === 'Company' ? formData.opted115BAB : false,
             ageGroup: formData.entityType === 'Individual' ? formData.ageGroup : undefined, 
             residentialStatus: formData.residentialStatus,
             income: {
-                // If not individual, salary is disabled/empty
                 salary: formData.entityType === 'Individual' ? { enabled: formData.salaryEnabled, ...formData } : { enabled: false },
                 business: formData.business,
                 houseProperty: { enabled: formData.hpEnabled, type: formData.hpType, rentReceived: formData.rentReceived, municipalTaxes: formData.municipalTaxes, interestPaid: formData.interestPaid },
@@ -200,7 +249,6 @@ const TaxCalculator = ({ isGuest = false }) => {
     // NAVIGATION HELPERS
     const handleNext = () => {
         if (step === 1) {
-            // If not Individual, SKIP Salary (Step 2)
             if (formData.entityType !== 'Individual') {
                 setStep(3);
                 return;
@@ -211,7 +259,6 @@ const TaxCalculator = ({ isGuest = false }) => {
 
     const handleBack = () => {
         if (step === 3) {
-            // If not Individual, BACK goes to Step 1 (Skip Step 2)
             if (formData.entityType !== 'Individual') {
                 setStep(1);
                 return;
@@ -255,6 +302,45 @@ const TaxCalculator = ({ isGuest = false }) => {
                 {/* STEP 1: BASIC INFO */}
                 {step === 1 && (
                     <div className="fade-in">
+                        {/* --- NEW: FORM-16 UPLOAD SECTION --- */}
+                        <div style={{
+                            background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)', 
+                            padding: '20px', 
+                            borderRadius: '12px', 
+                            marginBottom: '25px', 
+                            textAlign: 'center',
+                            border: '2px dashed #2196f3'
+                        }}>
+                            <h4 style={{margin:'0 0 10px 0', color:'#1565c0'}}>⚡ Have a Form-16 PDF?</h4>
+                            <p style={{fontSize:'13px', color:'#555', marginBottom:'15px'}}>Upload it here to auto-fill your Salary, Deductions, and TDS details instantly.</p>
+                            
+                            {parsing ? (
+                                <div style={{color:'#1976d2', fontWeight:'bold'}}>
+                                    🔄 Parsing your Form-16... Please wait...
+                                </div>
+                            ) : (
+                                <div style={{position:'relative', display:'inline-block'}}>
+                                    <button style={{
+                                        background:'white', color:'#1976d2', border:'1px solid #1976d2', 
+                                        padding:'10px 25px', borderRadius:'25px', cursor:'pointer', fontWeight:'bold',
+                                        display:'flex', alignItems:'center', gap:'8px'
+                                    }}>
+                                        📄 Upload PDF
+                                    </button>
+                                    <input 
+                                        type="file" 
+                                        accept=".pdf" 
+                                        onChange={handleFileUpload} 
+                                        style={{
+                                            position:'absolute', top:0, left:0, width:'100%', height:'100%', 
+                                            opacity:0, cursor:'pointer'
+                                        }}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                        {/* --- END UPLOAD SECTION --- */}
+
                         <h3>📋 Basic Information</h3>
                         <div className="form-grid">
                             <div className="input-group">

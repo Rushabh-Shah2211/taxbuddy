@@ -1,6 +1,7 @@
 // server/controllers/taxController.js
 const TaxRecord = require('../models/TaxRecord');
 const sendEmail = require('../utils/sendEmail');
+const parseForm16 = require('../utils/form16Parser'); // Import the new utility
 
 // ==========================================
 //   HELPER FUNCTIONS (Salary & Components)
@@ -395,6 +396,28 @@ const calculateTax = async (req, res) => {
     }
 };
 
+// NEW: Form-16 Parsing Controller
+const parseForm16Data = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: "No file uploaded" });
+        }
+
+        // req.file.buffer contains the file data in memory (thanks to multer)
+        const result = await parseForm16(req.file.buffer);
+
+        if (result.success) {
+            res.json(result.data);
+        } else {
+            res.status(500).json({ message: "Could not extract data from PDF" });
+        }
+
+    } catch (error) {
+        console.error("Parsing Controller Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
 const getTaxHistory = async (req, res) => {
     try {
         const history = await TaxRecord.find({ user: req.query.userId }).sort({ createdAt: -1 });
@@ -440,4 +463,4 @@ const emailReport = async (req, res) => {
     }
 };
 
-module.exports = { calculateTax, getTaxHistory, deleteTaxRecord, aiTaxAdvisor, emailReport };
+module.exports = { calculateTax, getTaxHistory, deleteTaxRecord, aiTaxAdvisor, emailReport, parseForm16Data };
