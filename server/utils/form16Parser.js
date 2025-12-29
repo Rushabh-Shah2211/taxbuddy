@@ -1,4 +1,4 @@
-const pdf = require('pdf-parse');
+const pdf = require('pdf-extraction');
 
 const extractValue = (text, patterns) => {
     for (const pattern of patterns) {
