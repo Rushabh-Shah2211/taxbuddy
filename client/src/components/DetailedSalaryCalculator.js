@@ -9,6 +9,10 @@ const DetailedSalaryCalculator = ({ onDataChange, initialData = {} }) => {
     const [da, setDa] = useState(initialData.da || '');
     const [bonus, setBonus] = useState(initialData.bonus || '');
     
+    // NEW: Statutory Deductions
+    const [professionalTax, setProfessionalTax] = useState(initialData.professionalTax || '');
+    const [standardDeduction, setStandardDeduction] = useState(initialData.standardDeduction || 75000);
+
     // HRA Details
     const [hra, setHra] = useState(initialData.hra || '');
     const [rentPaid, setRentPaid] = useState(initialData.rentPaid || '');
@@ -43,12 +47,22 @@ const DetailedSalaryCalculator = ({ onDataChange, initialData = {} }) => {
     const [leaveExempt, setLeaveExempt] = useState(0);
     const [pensionExempt, setPensionExempt] = useState(0);
 
+    // Update state if initialData changes (e.g. from Smart Fill)
+    useEffect(() => {
+        if(initialData.standardDeduction !== undefined) setStandardDeduction(initialData.standardDeduction);
+        if(initialData.professionalTax !== undefined) setProfessionalTax(initialData.professionalTax);
+        if(initialData.basic !== undefined) setBasic(initialData.basic);
+        if(initialData.otherAllowancesTaxable !== undefined) setOtherAllowances(initialData.otherAllowancesTaxable);
+        // Add other fields hydration if needed, but these are the critical Smart Fill ones
+    }, [initialData]);
+
     useEffect(() => {
         calculateExemptions();
         sendDataToParent();
     }, [basic, da, hra, rentPaid, isMetro, gratuityReceived, lastDrawnSalary, yearsOfService, 
         coveredByAct, leaveReceived, avgSalary10M, earnedLeave, uncommutedPension, 
-        commutedReceived, commutationPct, hasGratuity, perqValue, otherAllowances, employmentType, mode]);
+        commutedReceived, commutationPct, hasGratuity, perqValue, otherAllowances, employmentType, mode,
+        professionalTax, standardDeduction]);
 
     const calculateExemptions = () => {
         const b = Number(basic) || 0;
@@ -144,6 +158,8 @@ const DetailedSalaryCalculator = ({ onDataChange, initialData = {} }) => {
             hra: Number(hra) || 0,
             rentPaid: Number(rentPaid) || 0,
             isMetro,
+            professionalTax: Number(professionalTax) || 0,     // NEW
+            standardDeduction: Number(standardDeduction) || 0, // NEW
             gratuity: {
                 received: Number(gratuityReceived) || 0,
                 lastDrawnSalary: Number(lastDrawnSalary) || 0,
@@ -256,12 +272,27 @@ const DetailedSalaryCalculator = ({ onDataChange, initialData = {} }) => {
                 </select>
             </div>
 
+            {/* --- NEW: Statutory Deductions Section (Visible in both modes) --- */}
+            <div style={sectionStyle}>
+                <h3 style={{ marginTop: 0 }}>📉 Statutory Deductions</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <div>
+                        <label style={labelStyle}>Standard Deduction</label>
+                        <input type="number" value={standardDeduction} onChange={(e) => setStandardDeduction(e.target.value)} style={{...inputStyle, background: '#e9ecef'}} />
+                    </div>
+                    <div>
+                        <label style={labelStyle}>Professional Tax (u/s 16(iii))</label>
+                        <input type="number" value={professionalTax} onChange={(e) => setProfessionalTax(e.target.value)} placeholder="₹" style={inputStyle} />
+                    </div>
+                </div>
+            </div>
+
             {!mode ? (
                 <div style={sectionStyle}>
                     <h3 style={{ marginTop: 0 }}>📊 Simple Salary Input</h3>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                         <div>
-                            <label style={labelStyle}>Basic Salary (Annual)</label>
+                            <label style={labelStyle}>Basic Salary / Gross</label>
                             <input
                                 type="number"
                                 value={basic}

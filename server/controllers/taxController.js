@@ -216,9 +216,10 @@ const calculateTax = async (req, res) => {
         // 1. SALARY (Individuals Only)
         let totalSalaryTaxable = 0;
         let dbSalary = {
-            enabled: false, detailedMode: false,
-            basic: 0, hra: 0, gratuity: 0, leaveEncashment: 0, pension: 0, perquisites: 0, allowances: 0,
-            details: {}
+                enabled: false, detailedMode: false,
+                basic: 0, hra: 0, gratuity: 0, leaveEncashment: 0, pension: 0, perquisites: 0, allowances: 0,
+                professionalTax: 0, standardDeduction: 75000, // Default for New Regime FY25
+                details: {}
         };
 
         if (entityType === 'Individual' && income.salary) {
@@ -253,9 +254,19 @@ const calculateTax = async (req, res) => {
             dbSalary.details.rentPaid = s.rentPaid;
             dbSalary.details.isMetro = s.isMetro;
 
+            // --- UPDATED LOGIC FOR DEDUCTIONS U/S 16 ---
+            // 1. Standard Deduction (Allow override from frontend, else default 75k)
+            dbSalary.standardDeduction = (s.standardDeduction !== undefined) ? Number(s.standardDeduction) : 75000;
+            
+            // 2. Professional Tax (u/s 16(iii)) - EXTRACTED FROM FORM 16
+            dbSalary.professionalTax = Number(s.professionalTax) || 0;
+
             if (dbSalary.enabled) {
                 const grossSal = dbSalary.basic + dbSalary.hra + dbSalary.gratuity + dbSalary.leaveEncashment + dbSalary.pension + dbSalary.perquisites + dbSalary.allowances;
-                totalSalaryTaxable = Math.max(0, grossSal - 75000); 
+                
+                // Final Taxable Salary = Gross - Standard Deduction - Professional Tax
+                // (Previously hardcoded as grossSal - 75000)
+                totalSalaryTaxable = Math.max(0, grossSal - dbSalary.standardDeduction - dbSalary.professionalTax); 
             }
         }
 

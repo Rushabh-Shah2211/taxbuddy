@@ -19,10 +19,10 @@ const TaxCalculator = ({ isGuest = false }) => {
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(false);
     
-    // NEW: Parsing State for Form-16 Upload
+    // Parsing State for Form-16 Upload
     const [parsing, setParsing] = useState(false);
 
-    // Initial State
+    // Initial State - Includes new fields: professionalTax, standardDeduction
     const [formData, setFormData] = useState({
         financialYear: '2025-2026', 
         entityType: 'Individual', 
@@ -31,7 +31,11 @@ const TaxCalculator = ({ isGuest = false }) => {
         residentialStatus: 'Resident',
         salaryEnabled: false, 
         detailedMode: false,
+        // Salary Fields
         basic: '', hra: '', gratuity: '', pension: '', prevSalary: '', allowances: '',
+        standardDeduction: 75000, 
+        professionalTax: '',
+        otherAllowancesTaxable: '',
         rentPaid: '', isMetro: false,
         business: { enabled: false, businesses: [{ type: 'Presumptive', name: '', turnover: '', profit: '', presumptiveRate: '6' }] },
         hpEnabled: false, hpType: 'Self Occupied', rentReceived: '', municipalTaxes: '', interestPaid: '',
@@ -74,6 +78,8 @@ const TaxCalculator = ({ isGuest = false }) => {
                 basic: sal.basic || '',
                 hra: sal.hra || '',
                 allowances: sal.allowances || '',
+                standardDeduction: sal.standardDeduction || 75000,
+                professionalTax: sal.professionalTax || '',
                 gratuity: salDetails.gratuityInput || sal.gratuity || '',
                 leaveEncashment: salDetails.leaveInput || sal.leaveEncashment || '',
                 pension: salDetails.pensionInput || sal.pension || '',
@@ -102,50 +108,56 @@ const TaxCalculator = ({ isGuest = false }) => {
         setFormData({ ...formData, [e.target.name]: value });
     };
     
-    // --- NEW: Handle Form-16 Upload ---
+    // --- SMART FILL: Handle Form-16 Upload ---
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         setParsing(true);
         const uploadData = new FormData();
-        uploadData.append('file', file);
+        uploadData.append('pdfFile', file); // KEY IS 'pdfFile'
 
         try {
             const { data } = await axios.post('https://taxbuddy-o5wu.onrender.com/api/tax/parse-form16', uploadData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
-            // Auto-fill logic based on extracted data
-            setFormData(prev => ({
-                ...prev,
-                // 1. Financial Year
-                financialYear: data.financialYear || prev.financialYear,
+            if (data.success && data.data) {
+                const ext = data.data;
                 
-                // 2. Salary (Map Gross Salary to Basic & Enable)
-                salaryEnabled: true,
-                basic: data.grossSalary || prev.basic,
-                
-                // 3. Deductions (Map 80C & Enable)
-                deductions: {
-                    ...prev.deductions,
-                    enabled: true,
-                    section80C: data.deductions80C || prev.deductions.section80C
-                },
-                
-                // 4. TDS
-                tds: data.tds || prev.tds
-            }));
+                setFormData(prev => ({
+                    ...prev,
+                    // 1. Enable Salary & Map Details
+                    salaryEnabled: true,
+                    basic: ext.salary.gross || prev.basic, 
+                    standardDeduction: ext.salary.standardDeduction || 75000,
+                    professionalTax: ext.salary.professionalTax || 0,
+                    otherAllowancesTaxable: ext.salary.exemptions || 0,
+                    
+                    // 2. Map Deductions
+                    deductions: {
+                        ...prev.deductions,
+                        enabled: true,
+                        section80C: ext.deductions.section80C || 0,
+                        section80D: ext.deductions.section80D || 0,
+                        section80G: ext.deductions.section80G || 0
+                    },
+                    
+                    // 3. Map TDS
+                    tds: ext.tds || prev.tds
+                }));
 
-            alert(`✅ Auto-fill Successful!\n\nExtracted:\n- Gross Salary: ₹${data.grossSalary}\n- 80C Deductions: ₹${data.deductions80C}\n- TDS: ₹${data.tds}\n\nPlease verify the values in the next steps.`);
+                alert(`✅ Smart Fill Successful!\n\nExtracted:\n- Gross Salary: ₹${ext.salary.gross}\n- Standard Ded: ₹${ext.salary.standardDeduction}\n- Prof. Tax: ₹${ext.salary.professionalTax}\n- 80C: ₹${ext.deductions.section80C}\n- TDS: ₹${ext.tds}\n\nPlease verify values in next steps.`);
+            } else {
+                throw new Error("Invalid response format");
+            }
 
         } catch (error) {
-            console.error("Form-16 Parse Error:", error);
-            alert("❌ Failed to parse Form-16. Please ensure it is a valid PDF or enter details manually.");
+            console.error("Smart Fill Error:", error);
+            alert("❌ Failed to parse Form-16. Please try a clearer PDF or enter details manually.");
         } finally {
             setParsing(false);
-            // Clear input
-            e.target.value = null;
+            e.target.value = null; // Clear input
         }
     };
 
@@ -163,7 +175,14 @@ const TaxCalculator = ({ isGuest = false }) => {
             alert("🔒 Feature Locked\n\nDetailed Salary Calculation (HRA, Gratuity, Pension breakdown) is available for Registered Users only.\n\nPlease Login to access this.");
             return; 
         }
-        setFormData(prev => ({ ...prev, salaryEnabled: true, ...data }));
+        setFormData(prev => ({ 
+            ...prev, 
+            salaryEnabled: true, 
+            ...data,
+            // Ensure statutory deductions bubble up
+            standardDeduction: data.standardDeduction,
+            professionalTax: data.professionalTax
+        }));
     };
 
     const calculateTax = async () => {
@@ -176,7 +195,13 @@ const TaxCalculator = ({ isGuest = false }) => {
             ageGroup: formData.entityType === 'Individual' ? formData.ageGroup : undefined, 
             residentialStatus: formData.residentialStatus,
             income: {
-                salary: formData.entityType === 'Individual' ? { enabled: formData.salaryEnabled, ...formData } : { enabled: false },
+                salary: formData.entityType === 'Individual' ? { 
+                    enabled: formData.salaryEnabled, 
+                    ...formData,
+                    // Ensure backend receives statutory deduction values
+                    standardDeduction: formData.standardDeduction,
+                    professionalTax: formData.professionalTax 
+                } : { enabled: false },
                 business: formData.business,
                 houseProperty: { enabled: formData.hpEnabled, type: formData.hpType, rentReceived: formData.rentReceived, municipalTaxes: formData.municipalTaxes, interestPaid: formData.interestPaid },
                 capitalGains: formData.capitalGains,
@@ -302,7 +327,7 @@ const TaxCalculator = ({ isGuest = false }) => {
                 {/* STEP 1: BASIC INFO */}
                 {step === 1 && (
                     <div className="fade-in">
-                        {/* --- NEW: FORM-16 UPLOAD SECTION --- */}
+                        {/* --- SMART FILL UPLOAD SECTION --- */}
                         <div style={{
                             background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)', 
                             padding: '20px', 
@@ -311,12 +336,12 @@ const TaxCalculator = ({ isGuest = false }) => {
                             textAlign: 'center',
                             border: '2px dashed #2196f3'
                         }}>
-                            <h4 style={{margin:'0 0 10px 0', color:'#1565c0'}}>⚡ Have a Form-16 PDF?</h4>
-                            <p style={{fontSize:'13px', color:'#555', marginBottom:'15px'}}>Upload it here to auto-fill your Salary, Deductions, and TDS details instantly.</p>
+                            <h4 style={{margin:'0 0 10px 0', color:'#1565c0'}}>⚡ Smart Fill with Form-16</h4>
+                            <p style={{fontSize:'13px', color:'#555', marginBottom:'15px'}}>Upload your PDF to auto-populate Salary, Deductions (80C/80D), and TDS.</p>
                             
                             {parsing ? (
                                 <div style={{color:'#1976d2', fontWeight:'bold'}}>
-                                    🔄 Parsing your Form-16... Please wait...
+                                    🔄 Analyzing Form-16... Please wait...
                                 </div>
                             ) : (
                                 <div style={{position:'relative', display:'inline-block'}}>
