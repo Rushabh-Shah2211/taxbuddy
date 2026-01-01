@@ -49,7 +49,7 @@ router.post('/email-report', emailReport);
 //   NEW: FORM-16 OCR ROUTE
 // ==========================================
 // Accepts a single file with key 'pdfFile'
-router.post('/parse-form16', upload.single('pdfFile'), parseForm16Data);
+router.post('/parse-form16', upload.single('file'), parseForm16Data);
 
 // ==========================================
 //   ADMIN ROUTES
