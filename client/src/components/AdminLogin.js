@@ -12,7 +12,7 @@ const AdminLogin = () => {
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
-            const { data } = await axios.post('https://taxbuddy-o5wu.onrender.com/api/admin/login', { email, password });
+            const { data } = await axios.post('https://taxbuddy-o5wu.onrender.com/api/tax/admin/login', { email, password });
             localStorage.setItem('adminToken', data.token);
             navigate('/admin/dashboard');
         } catch (error) {
