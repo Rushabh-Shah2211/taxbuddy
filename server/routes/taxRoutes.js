@@ -1,41 +1,34 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { forceResetAdmin } = require('../controllers/adminController');
-const { getAdminStats } = require('../controllers/adminController');
 
-
-// ==========================================
-//   MULTER CONFIG (File Upload Middleware)
-// ==========================================
-// We use memoryStorage to keep the file in RAM for quick parsing
+// Configure Multer (Memory Storage for PDF parsing)
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// ==========================================
-//   IMPORT CONTROLLERS
-// ==========================================
+// Import Tax Controllers
 const { 
     calculateTax, 
     getTaxHistory, 
     deleteTaxRecord, 
     aiTaxAdvisor, 
     emailReport,
-    parseForm16Data // New Parser Controller
+    parseForm16Data 
 } = require('../controllers/taxController');
 
+// Import Admin Controllers
 const { 
     adminLogin, 
     createAdmin, 
     getAllUsers, 
     getUserFullData,
-    forceResetAdmin, // <--- Must allow import
-    getAdminStats    // <--- Must allow import
+    forceResetAdmin,
+    getAdminStats
 } = require('../controllers/adminController');
 
-// ==========================================
-//   TAX & USER ROUTES
-// ==========================================
+// ==========================
+//      TAX ROUTES
+// ==========================
 
 // Public Route (Guest Calculation)
 router.post('/calculate-guest', calculateTax); 
@@ -43,27 +36,31 @@ router.post('/calculate-guest', calculateTax);
 // AI Advisor
 router.post('/ai-advisor', aiTaxAdvisor);
 
-// Protected Routes (Logged in Users)
-// Note: In a production app, add 'protect' middleware here
+// Protected Routes (Ideally add auth middleware here)
 router.post('/calculate', calculateTax);
 router.get('/history', getTaxHistory);
 router.delete('/:id', deleteTaxRecord);
 router.post('/email-report', emailReport);
 
-// ==========================================
-//   NEW: FORM-16 OCR ROUTE
-// ==========================================
-// Accepts a single file with key 'pdfFile'
+// Form-16 Parsing (Note: 'pdfFile' key must match frontend)
 router.post('/parse-form16', upload.single('pdfFile'), parseForm16Data);
 
-// ==========================================
-//   ADMIN ROUTES
-// ==========================================
-router.post('/admin/login', adminLogin);       // Database-based Admin Login
-router.post('/admin/create', createAdmin);     // Setup Route (Run once to create admin)
-router.post('/admin/force-reset', forceResetAdmin);
-router.get('/admin/users', getAllUsers);       // Fetch all users
-router.get('/admin/user/:userId', getUserFullData); // Fetch specific user history
+// ==========================
+//      ADMIN ROUTES
+// ==========================
+
+// 1. Dashboard Stats
 router.get('/admin/stats', getAdminStats);
+
+// 2. Authentication
+router.post('/admin/login', adminLogin);
+router.post('/admin/create', createAdmin);
+
+// 3. User Management
+router.get('/admin/users', getAllUsers);
+router.get('/admin/user/:userId', getUserFullData);
+
+// 4. Emergency Password Reset
+router.post('/admin/force-reset', forceResetAdmin);
 
 module.exports = router;
