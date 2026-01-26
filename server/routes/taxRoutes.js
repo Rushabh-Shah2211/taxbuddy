@@ -28,7 +28,7 @@ const {
     adminLogin, 
     createAdmin, 
     getAllUsers, 
-    getUserFullData
+    getUserFullData,
     forceResetAdmin, // <--- Must allow import
     getAdminStats    // <--- Must allow import
 } = require('../controllers/adminController');
