@@ -1,22 +1,17 @@
 // server/controllers/adminController.js
 const User = require('../models/User');
 const TaxRecord = require('../models/TaxRecord');
-const ChatRecord = require('../models/ChatRecord'); // Assuming this exists
+// const ChatRecord = require('../models/ChatRecord'); // Uncomment if you have this model
+const Visitor = require('../models/Visitor'); // Ensure this model exists
 const bcrypt = require('bcryptjs');
-const Visitor = require('../models/Visitor');
-
 
 // 1. Admin Login (Database Check)
 const adminLogin = async (req, res) => {
     try {
         const { email, password } = req.body;
-        
-        // Find user by email
         const user = await User.findOne({ email });
 
-        // Check if User exists AND is Admin AND Password matches
         if (user && (user.role === 'admin') && (await bcrypt.compare(password, user.password))) {
-            // Return the same token structure your frontend expects
             res.json({ token: 'admin-secret-token', email: user.email, name: user.name });
         } else {
             res.status(401).json({ message: "Invalid Admin Credentials or Access Denied" });
@@ -26,32 +21,23 @@ const adminLogin = async (req, res) => {
     }
 };
 
-// NEW: One-time setup to create an Admin user in DB
+// 2. Create Admin (Setup)
 const createAdmin = async (req, res) => {
     try {
         const { name, email, password } = req.body;
-        
         let user = await User.findOne({ email });
         
-        // Hash the new password
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
         if (user) {
-            // OPTION 1: User exists -> Upgrade them to Admin
             user.password = hashedPassword;
             user.role = 'admin';
-            user.name = name || user.name; // Update name if provided
+            user.name = name || user.name;
             await user.save();
             return res.status(200).json({ message: "Existing User Upgraded to Admin", user });
         } else {
-            // OPTION 2: New User -> Create as Admin
-            user = await User.create({
-                name, 
-                email, 
-                password: hashedPassword,
-                role: 'admin'
-            });
+            user = await User.create({ name, email, password: hashedPassword, role: 'admin' });
             return res.status(201).json({ message: "Admin Created Successfully", user });
         }
     } catch (error) {
@@ -59,7 +45,7 @@ const createAdmin = async (req, res) => {
     }
 };
 
-// ... (Keep getAllUsers, getUserFullData, saveChatInteraction as they were) ...
+// 3. Get All Users
 const getAllUsers = async (req, res) => {
     try {
         const users = await User.find({ role: { $ne: 'admin' } }).select('-password').sort({ createdAt: -1 });
@@ -67,40 +53,17 @@ const getAllUsers = async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
+// 4. Get User Data
 const getUserFullData = async (req, res) => {
     try {
         const userId = req.params.userId;
         const taxHistory = await TaxRecord.find({ user: userId }).sort({ createdAt: -1 });
-        const chatHistory = await ChatRecord.find({ user: userId }).sort({ timestamp: -1 }); // Optional
-        res.json({ taxHistory, chatHistory });
+        // const chatHistory = await ChatRecord.find({ user: userId }); // Uncomment if needed
+        res.json({ taxHistory }); // Add chatHistory here if needed
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
-const saveChatInteraction = async (req, res) => {
-    try {
-        const { userId, question, answer } = req.body;
-        if (userId) {
-            // await ChatRecord.create({ user: userId, question, answer }); // Uncomment when model exists
-        }
-        res.json({ success: true });
-    } catch (error) { res.status(500).json({ message: "Failed to save chat" }); }
-};
-
-const getAdminStats = async (req, res) => {
-    try {
-        const visitors = await Visitor.findOne({ counterId: 'global-visitor-count' });
-        const userCount = await User.countDocuments({ role: { $ne: 'admin' } });
-
-        res.json({
-            totalVisitors: visitors ? visitors.count : 0,
-            totalUsers: userCount
-        });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-// EMERGENCY RESET: Run this once then delete it
+// 5. Emergency Reset (Task 1)
 const forceResetAdmin = async (req, res) => {
     try {
         const { email, newPassword } = req.body;
@@ -108,18 +71,44 @@ const forceResetAdmin = async (req, res) => {
 
         if (!user) return res.status(404).json({ message: "Admin User Not Found" });
 
-        // Force update password and role
         const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(newPassword, salt);
-        user.role = 'admin'; // Ensure they have admin privileges
+        user.role = 'admin';
         
         await user.save();
-        res.json({ message: `Success! Password for ${email} reset to: ${newPassword}` });
+        res.json({ message: `Success! Password for ${email} reset.` });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
+// 6. Get Stats (Task 2)
+const getAdminStats = async (req, res) => {
+    try {
+        // Safe check in case Visitor model isn't created yet
+        let visitors = 0;
+        try {
+            const vRecord = await Visitor.findOne({ counterId: 'global-visitor-count' });
+            visitors = vRecord ? vRecord.count : 0;
+        } catch (err) { console.log("Visitor model not ready yet"); }
 
+        const userCount = await User.countDocuments({ role: { $ne: 'admin' } });
+        
+        res.json({
+            totalVisitors: visitors,
+            totalUsers: userCount
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
-module.exports = { adminLogin, createAdmin, getAllUsers, getUserFullData, saveChatInteraction, forceResetAdmin };
+// --- CRITICAL STEP: EXPORT ALL FUNCTIONS ---
+module.exports = { 
+    adminLogin, 
+    createAdmin, 
+    getAllUsers, 
+    getUserFullData, 
+    forceResetAdmin, // <-- Ensure this is here
+    getAdminStats    // <-- Ensure this is here
+};
