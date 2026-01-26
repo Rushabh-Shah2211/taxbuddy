@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from 'axios'; // <--- FIXED IMPORT
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import logo from '../assets/rb_logo.png';
 import './TaxCalculator.css';
@@ -22,7 +22,7 @@ const TaxCalculator = ({ isGuest = false }) => {
     // Parsing State for Form-16 Upload
     const [parsing, setParsing] = useState(false);
 
-    // Initial State - Includes new fields: professionalTax, standardDeduction
+    // Initial State
     const [formData, setFormData] = useState({
         financialYear: '2025-2026', 
         entityType: 'Individual', 
@@ -60,7 +60,7 @@ const TaxCalculator = ({ isGuest = false }) => {
             return;
         }
 
-        // Hydration logic (only for logged-in users editing records)
+        // Hydration logic
         if (location.state && location.state.recordToEdit) {
             const rec = location.state.recordToEdit;
             const inc = rec.income || {};
@@ -115,7 +115,9 @@ const TaxCalculator = ({ isGuest = false }) => {
 
         setParsing(true);
         const uploadData = new FormData();
-        uploadData.append('pdfFile', file); // KEY IS 'pdfFile'
+        
+        // <--- CRITICAL FIX: CHANGED 'File' TO 'pdfFile' TO MATCH BACKEND --->
+        uploadData.append('pdfFile', file); 
 
         try {
             const { data } = await axios.post('https://taxbuddy-o5wu.onrender.com/api/tax/parse-form16', uploadData, {
@@ -154,7 +156,9 @@ const TaxCalculator = ({ isGuest = false }) => {
 
         } catch (error) {
             console.error("Smart Fill Error:", error);
-            alert("❌ Failed to parse Form-16. Please try a clearer PDF or enter details manually.");
+            // Added explicit error message logging to alert
+            const msg = error.response?.data?.message || "Failed to parse Form-16. Please try a clearer PDF.";
+            alert(`❌ Error: ${msg}`);
         } finally {
             setParsing(false);
             e.target.value = null; // Clear input

@@ -1,0 +1,32 @@
+import os
+from pathlib import Path
+
+# Configuration
+SOURCE_DIR = r"D:\RSApps\TaxApp"
+OUTPUT_FILE = "file_list.txt"
+
+def list_all_files(target_directory, output_filename):
+    path_obj = Path(target_directory)
+    
+    if not path_obj.exists():
+        print(f"Error: The directory {target_directory} does not exist.")
+        return
+
+    try:
+        with open(output_filename, "w", encoding="utf-8") as f:
+            f.write(f"List of all files in: {target_directory}\n")
+            f.write("=" * 50 + "\n\n")
+            
+            # rglob('*') finds all files and folders recursively
+            for file in path_obj.rglob('*'):
+                if file.is_file():
+                    # Writes the absolute path of each file to the text file
+                    f.write(str(file.absolute()) + "\n")
+                    
+        print(f"Successfully created '{output_filename}' with the file list.")
+        
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+if __name__ == "__main__":
+    list_all_files(SOURCE_DIR, OUTPUT_FILE)
