@@ -3,6 +3,7 @@ const User = require('../models/User');
 const TaxRecord = require('../models/TaxRecord');
 const ChatRecord = require('../models/ChatRecord'); // Assuming this exists
 const bcrypt = require('bcryptjs');
+const Visitor = require('../models/Visitor');
 
 
 // 1. Admin Login (Database Check)
@@ -85,4 +86,40 @@ const saveChatInteraction = async (req, res) => {
     } catch (error) { res.status(500).json({ message: "Failed to save chat" }); }
 };
 
-module.exports = { adminLogin, createAdmin, getAllUsers, getUserFullData, saveChatInteraction };
+const getAdminStats = async (req, res) => {
+    try {
+        const visitors = await Visitor.findOne({ counterId: 'global-visitor-count' });
+        const userCount = await User.countDocuments({ role: { $ne: 'admin' } });
+
+        res.json({
+            totalVisitors: visitors ? visitors.count : 0,
+            totalUsers: userCount
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// EMERGENCY RESET: Run this once then delete it
+const forceResetAdmin = async (req, res) => {
+    try {
+        const { email, newPassword } = req.body;
+        const user = await User.findOne({ email });
+
+        if (!user) return res.status(404).json({ message: "Admin User Not Found" });
+
+        // Force update password and role
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(newPassword, salt);
+        user.role = 'admin'; // Ensure they have admin privileges
+        
+        await user.save();
+        res.json({ message: `Success! Password for ${email} reset to: ${newPassword}` });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+
+
+module.exports = { adminLogin, createAdmin, getAllUsers, getUserFullData, saveChatInteraction, forceResetAdmin };

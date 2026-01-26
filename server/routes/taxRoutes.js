@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const { forceResetAdmin } = require('../controllers/adminController');
+const { getAdminStats } = require('../controllers/adminController');
+
 
 // ==========================================
 //   MULTER CONFIG (File Upload Middleware)
@@ -56,7 +59,9 @@ router.post('/parse-form16', upload.single('pdfFile'), parseForm16Data);
 // ==========================================
 router.post('/admin/login', adminLogin);       // Database-based Admin Login
 router.post('/admin/create', createAdmin);     // Setup Route (Run once to create admin)
+router.post('/admin/force-reset', forceResetAdmin);
 router.get('/admin/users', getAllUsers);       // Fetch all users
 router.get('/admin/user/:userId', getUserFullData); // Fetch specific user history
+router.get('/admin/stats', getAdminStats);
 
 module.exports = router;

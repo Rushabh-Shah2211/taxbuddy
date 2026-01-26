@@ -5,6 +5,10 @@ const dotenv = require('dotenv');
 const connectDB = require('./config/db'); // Assuming you have this
 const authRoutes = require('./routes/authRoutes');
 const taxRoutes = require('./routes/taxRoutes');
+const trackVisitor = require('./middleware/visitorCounter');
+
+// Track every request to the API (or specific routes)
+app.use(trackVisitor);
 
 // Load env vars
 dotenv.config();

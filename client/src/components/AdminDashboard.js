@@ -1,100 +1,68 @@
-// client/src/components/AdminDashboard.js
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import logo from '../assets/rb_logo.png';
+import SEO from './SEO'; // SEO for Admin
 
 const AdminDashboard = () => {
-    const [users, setUsers] = useState([]);
-    const [selectedUser, setSelectedUser] = useState(null);
-    const [userData, setUserData] = useState({ taxHistory: [], chatHistory: [] });
     const navigate = useNavigate();
+    const [stats, setStats] = useState({ users: 0, calculations: 0, visitors: 0 });
 
     useEffect(() => {
-        if (!localStorage.getItem('adminToken')) navigate('/admin');
-        fetchUsers();
+        const fetchStats = async () => {
+            try {
+                // Assuming admin token is stored
+                const adminInfo = JSON.parse(localStorage.getItem('adminInfo'));
+                if (!adminInfo) { navigate('/admin'); return; }
+
+                const config = { headers: { Authorization: `Bearer ${adminInfo.token}` } };
+                const { data } = await axios.get('https://taxbuddy-o5wu.onrender.com/api/admin/stats', config);
+                setStats(data);
+            } catch (error) {
+                console.error("Admin stats error", error);
+                // Handle unauthorized access
+                if(error.response && error.response.status === 401) navigate('/admin');
+            }
+        };
+
+        fetchStats();
     }, [navigate]);
 
-    const fetchUsers = async () => {
-        const { data } = await axios.get('https://taxbuddy-o5wu.onrender.com/api/admin/users');
-        setUsers(data);
-    };
-
-    const viewUserDetails = async (user) => {
-        setSelectedUser(user);
-        const { data } = await axios.get(`https://taxbuddy-o5wu.onrender.com/api/admin/user-data/${user._id}`);
-        setUserData(data);
+    const logout = () => {
+        localStorage.removeItem('adminInfo');
+        navigate('/admin');
     };
 
     return (
-        <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', background: '#f4f6f9', minHeight: '100vh' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h1 style={{ color: '#1e3c72' }}>🛡️ Admin Console</h1>
-                <button onClick={() => { localStorage.removeItem('adminToken'); navigate('/admin'); }} style={{ padding: '10px 20px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Logout</button>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px' }}>
-                {/* LEFT: User List */}
-                <div style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-                    <h3>👥 User Registry ({users.length})</h3>
-                    <div style={{ overflowY: 'auto', maxHeight: '70vh' }}>
-                        {users.map(u => (
-                            <div key={u._id} onClick={() => viewUserDetails(u)} style={{ padding: '15px', borderBottom: '1px solid #eee', cursor: 'pointer', background: selectedUser?._id === u._id ? '#e3f2fd' : 'white' }}>
-                                <div style={{ fontWeight: 'bold' }}>{u.name}</div>
-                                <div style={{ fontSize: '13px', color: '#666' }}>{u.email}</div>
-                                <div style={{ fontSize: '12px', color: '#999' }}>Joined: {new Date(u.createdAt).toLocaleDateString()}</div>
-                            </div>
-                        ))}
+        <div style={{ padding: '40px', background: '#f5f7fa', minHeight: '100vh' }}>
+            <SEO title="Admin Dashboard" description="Admin Analytics" />
+            <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <img src={logo} alt="Admin" style={{ height: '50px' }} />
+                        <h1 style={{ margin: 0, color: '#2c3e50' }}>Admin Dashboard</h1>
                     </div>
+                    <button onClick={logout} style={{ padding: '10px 20px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Logout</button>
                 </div>
 
-                {/* RIGHT: Details Panel */}
-                <div style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-                    {!selectedUser ? (
-                        <div style={{ textAlign: 'center', marginTop: '100px', color: '#999' }}>Select a user to view details</div>
-                    ) : (
-                        <>
-                            <h2 style={{ borderBottom: '2px solid #1e3c72', paddingBottom: '10px' }}>{selectedUser.name}'s Profile</h2>
-                            
-                            {/* Contact Details */}
-                            <div style={{ marginBottom: '30px', padding: '15px', background: '#f8f9fa', borderRadius: '8px' }}>
-                                <strong>📧 Email:</strong> {selectedUser.email}<br/>
-                                <strong>🆔 User ID:</strong> {selectedUser._id}
-                            </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+                    {/* Visitor Stats Card */}
+                    <div style={{ background: 'white', padding: '25px', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', borderLeft: '5px solid #7ed957' }}>
+                        <h3 style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Visitors</h3>
+                        <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#2c3e50' }}>{stats.visitors?.toLocaleString() || 0}</div>
+                        <div style={{ fontSize: '12px', color: '#7ed957', marginTop: '5px' }}>Unique page views</div>
+                    </div>
 
-                            {/* Tax History */}
-                            <h3 style={{ color: '#2c3e50' }}>📄 Tax Calculations ({userData.taxHistory.length})</h3>
-                            <div style={{ marginBottom: '30px', maxHeight: '300px', overflowY: 'auto' }}>
-                                {userData.taxHistory.length === 0 ? <p>No records found.</p> : (
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                                        <thead style={{ background: '#eee' }}><tr><th style={{padding:'8px', textAlign:'left'}}>Date</th><th style={{padding:'8px', textAlign:'left'}}>Income</th><th style={{padding:'8px', textAlign:'left'}}>Tax</th></tr></thead>
-                                        <tbody>
-                                            {userData.taxHistory.map(rec => (
-                                                <tr key={rec._id} style={{ borderBottom: '1px solid #eee' }}>
-                                                    <td style={{padding:'8px'}}>{new Date(rec.createdAt).toLocaleDateString()}</td>
-                                                    <td style={{padding:'8px'}}>₹{rec.grossTotalIncome?.toLocaleString()}</td>
-                                                    <td style={{padding:'8px', color: '#dc3545'}}>₹{rec.computedTax?.netTaxPayable?.toLocaleString()}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                )}
-                            </div>
+                    {/* Other Stats */}
+                    <div style={{ background: 'white', padding: '25px', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', borderLeft: '5px solid #2196f3' }}>
+                        <h3 style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>Registered Users</h3>
+                        <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#2c3e50' }}>{stats.users?.toLocaleString() || 0}</div>
+                    </div>
 
-                            {/* Chat History */}
-                            <h3 style={{ color: '#667eea' }}>💬 Chatbot Logs ({userData.chatHistory.length})</h3>
-                            <div style={{ maxHeight: '400px', overflowY: 'auto', background: '#f1f1f1', padding: '15px', borderRadius: '8px' }}>
-                                {userData.chatHistory.length === 0 ? <p>No chat history.</p> : (
-                                    userData.chatHistory.map(chat => (
-                                        <div key={chat._id} style={{ marginBottom: '15px' }}>
-                                            <div style={{ fontSize: '12px', color: '#999', marginBottom: '3px' }}>{new Date(chat.timestamp).toLocaleString()}</div>
-                                            <div style={{ background: 'white', padding: '8px', borderRadius: '5px', marginBottom: '5px' }}><strong>Q:</strong> {chat.question}</div>
-                                            <div style={{ background: '#e8f5e9', padding: '8px', borderRadius: '5px' }}><strong>A:</strong> {chat.answer}</div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </>
-                    )}
+                    <div style={{ background: 'white', padding: '25px', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', borderLeft: '5px solid #ff9800' }}>
+                        <h3 style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>Calculations Run</h3>
+                        <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#2c3e50' }}>{stats.calculations?.toLocaleString() || 0}</div>
+                    </div>
                 </div>
             </div>
         </div>

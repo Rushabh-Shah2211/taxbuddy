@@ -14,22 +14,47 @@ const generateToken = (id) => {
     });
 };
 
+
+
 // @desc Register
 const registerUser = async (req, res) => {
     try {
         const { name, email, password } = req.body;
-        if (!name || !email || !password) return res.status(400).json({ message: 'Please add all fields' });
-
-        const userExists = await User.findOne({ email });
-        if (userExists) return res.status(400).json({ message: 'User already exists' });
-
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
+        // ... (validation and existing user check) ...
 
         const user = await User.create({ name, email, password: hashedPassword });
 
         if (user) {
-            res.status(201).json({ _id: user.id, name: user.name, email: user.email, token: generateToken(user.id) });
+            // --- START WELCOME EMAIL BLOCK ---
+            // We use 'setImmediate' or simply don't await it to prevent slowing down the response
+            const welcomeMessage = `
+                <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                    <h2 style="color: #2e7d32;">Welcome to Artha!</h2>
+                    <p>Hi ${user.name},</p>
+                    <p>We are thrilled to have you on board. Artha is designed to make your tax planning simple, intelligent, and stress-free.</p>
+                    <p><strong>What you can do now:</strong></p>
+                    <ul>
+                        <li>Upload your Form-16 for instant analysis.</li>
+                        <li>Compare Old vs. New Regime savings.</li>
+                        <li>Get AI-powered tax saving suggestions.</li>
+                    </ul>
+                    <p>Happy Saving,<br>The Artha Team</p>
+                </div>
+            `;
+
+            sendEmail({
+                email: user.email,
+                subject: 'Welcome to Artha! 🚀',
+                message: welcomeMessage
+            }).catch(err => console.error("Welcome Email Failed:", err));
+            // --- END WELCOME EMAIL BLOCK ---
+
+            res.status(201).json({
+                _id: user.id,
+                name: user.name,
+                email: user.email,
+                token: generateToken(user.id),
+            });
         } else {
             res.status(400).json({ message: 'Invalid user data' });
         }

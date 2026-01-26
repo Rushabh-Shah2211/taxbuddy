@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios'; // NEW IMPORT
 import { Link, useNavigate } from 'react-router-dom';
 import logo from '../assets/rb_logo.png';
+import SEO from './SEO'; // NEW IMPORT
 
 const LandingPage = () => {
     const navigate = useNavigate();
@@ -10,6 +12,19 @@ const LandingPage = () => {
     const [taxOld, setTaxOld] = useState(0);
     const [taxNew, setTaxNew] = useState(0);
     const [savings, setSavings] = useState(0);
+
+    // --- VISITOR TRACKING ---
+    useEffect(() => {
+        const trackVisit = async () => {
+            try {
+                // Fire and forget - counts the visit
+                await axios.get('https://taxbuddy-o5wu.onrender.com/api/track-visit');
+            } catch (error) {
+                console.error("Tracking error:", error);
+            }
+        };
+        trackVisit();
+    }, []);
 
     const calculateOldTax = (taxableIncome) => {
         let tax = 0;
@@ -77,6 +92,13 @@ const LandingPage = () => {
 
     return (
         <div style={{ fontFamily: "'Poppins', sans-serif", background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', minHeight: '100vh' }}>
+            {/* SEO COMPONENT */}
+            <SEO 
+                title="Artha - Free AI Tax Calculator & Planner"
+                description="Save thousands on taxes with Artha. Compare Old vs New Regime instantly, generate Form-16 reports, and get AI-driven tax saving tips."
+                keywords="income tax calculator india, old vs new regime, tax planning ai, form 16 generator, tax saver"
+            />
+
             {/* Navbar */}
             <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 50px', background: 'white', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', position: 'sticky', top: 0, zIndex: 100 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -252,10 +274,8 @@ const LandingPage = () => {
             <footer style={{ background: '#1a252f', color: '#ccc', padding: '40px 20px', textAlign: 'center' }}>
                 <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
                     <p>&copy; 2025 Artha by RB. All rights reserved. | 
-                        <Link to="/privacy-policy">Privacy Policy |</Link>
-                        <Link to="/terms-of-service">Terms of Service |</Link>
-                        <Link to="/cookie-policy">Cookie Policy |</Link>
-                        <Link to="/data-processing-agreement">DPA |</Link>
+                        <Link to="/privacy" style={{ color: '#7ed957', textDecoration: 'none', marginLeft: '5px' }}>Privacy Policy</Link> | 
+                        <Link to="/terms" style={{ color: '#7ed957', textDecoration: 'none', marginLeft: '5px' }}>Terms of Service</Link>
                     </p>            
                     <p style={{ marginTop: '10px', fontSize: '14px' }}>Ready to reclaim your tax season? <button onClick={() => navigate('/guest-calculator')} style={{ background: 'none', border: 'none', color: '#7ed957', cursor: 'pointer', fontWeight: 'bold' }}>Start Free Now</button></p>
                 </div>

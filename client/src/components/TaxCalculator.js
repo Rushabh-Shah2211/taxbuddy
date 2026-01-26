@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios'; // <--- FIXED IMPORT
+import axios from 'axios';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import logo from '../assets/rb_logo.png';
 import './TaxCalculator.css';
@@ -8,6 +8,7 @@ import DetailedSalaryCalculator from './DetailedSalaryCalculator';
 import CapitalGainsCalculator from './CapitalGainsCalculator';
 import DeductionsCalculator from './DeductionsCalculator';
 import { generateTaxReportPDF } from '../utils/pdfGenerator';
+import SEO from './SEO'; // NEW IMPORT
 
 // Accept isGuest prop
 const TaxCalculator = ({ isGuest = false }) => {
@@ -115,8 +116,6 @@ const TaxCalculator = ({ isGuest = false }) => {
 
         setParsing(true);
         const uploadData = new FormData();
-        
-        // <--- CRITICAL FIX: CHANGED 'File' TO 'pdfFile' TO MATCH BACKEND --->
         uploadData.append('pdfFile', file); 
 
         try {
@@ -156,7 +155,6 @@ const TaxCalculator = ({ isGuest = false }) => {
 
         } catch (error) {
             console.error("Smart Fill Error:", error);
-            // Added explicit error message logging to alert
             const msg = error.response?.data?.message || "Failed to parse Form-16. Please try a clearer PDF.";
             alert(`❌ Error: ${msg}`);
         } finally {
@@ -298,6 +296,9 @@ const TaxCalculator = ({ isGuest = false }) => {
 
     return (
         <div className="calculator-container">
+            {/* ADD SEO */}
+            <SEO title="Tax Calculator" description="Compute your income tax liability instantly for FY 2025-26." />
+
             <div className="navbar">
                 <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
                     <img src={logo} alt="Logo" style={{height:'60px'}} />
