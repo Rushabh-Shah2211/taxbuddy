@@ -1,42 +1,79 @@
-// client/src/components/AdminLogin.js
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import './Auth.css'; // Re-use your nice Auth styles
+import './AdminLogin.css'; // Ensure you have this CSS file or remove this import
 
 const AdminLogin = () => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const [formData, setFormData] = useState({ email: '', password: '' });
+    const [error, setError] = useState('');
     const navigate = useNavigate();
 
-    const handleLogin = async (e) => {
+    const handleChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const onSubmit = async (e) => {
         e.preventDefault();
+        setError('');
+        
         try {
-            const { data } = await axios.post('https://taxbuddy-o5wu.onrender.com/api/tax/admin/login', { email, password });
-            localStorage.setItem('adminToken', data.token);
-            navigate('/admin/dashboard');
-        } catch (error) {
-            alert('Invalid Admin Credentials');
+            // <--- CRITICAL FIX: Added '/tax' to the URL --->
+            const { data } = await axios.post('https://taxbuddy-o5wu.onrender.com/api/tax/admin/login', formData);
+            
+            if (data.token) {
+                // Save admin token specifically
+                localStorage.setItem('adminToken', data.token);
+                localStorage.setItem('adminName', data.name);
+                
+                // Redirect to Admin Dashboard
+                navigate('/admin/dashboard');
+            }
+        } catch (err) {
+            console.error("Login Error:", err);
+            // Show a friendly error message from the backend or a default one
+            const msg = err.response?.data?.message || "Login failed. Check your network or credentials.";
+            setError(msg);
         }
     };
 
     return (
-        <div className="auth-wrapper" style={{background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)'}}>
-            <div className="auth-card">
-                <h2>🛡️ Admin Console</h2>
-                <p>Restricted Access</p>
-                <form onSubmit={handleLogin}>
-                    <div className="input-group-auth">
-                        <label>Admin ID</label>
-                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                    </div>
-                    <div className="input-group-auth">
-                        <label>Password</label>
-                        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                    </div>
-                    <button type="submit" className="auth-btn" style={{background:'#1e3c72'}}>Login to Console</button>
-                </form>
-            </div>
+        <div className="admin-login-container" style={{maxWidth: '400px', margin: '50px auto', padding: '20px', border: '1px solid #ddd', borderRadius: '8px'}}>
+            <h2 style={{textAlign: 'center', color: '#333'}}>Admin Login</h2>
+            
+            {error && <div style={{color: 'red', marginBottom: '15px', textAlign: 'center'}}>{error}</div>}
+            
+            <form onSubmit={onSubmit}>
+                <div style={{marginBottom: '15px'}}>
+                    <label style={{display: 'block', marginBottom: '5px'}}>Email</label>
+                    <input 
+                        type="email" 
+                        name="email" 
+                        value={formData.email} 
+                        onChange={handleChange} 
+                        required 
+                        style={{width: '100%', padding: '8px', boxSizing: 'border-box'}}
+                    />
+                </div>
+                
+                <div style={{marginBottom: '20px'}}>
+                    <label style={{display: 'block', marginBottom: '5px'}}>Password</label>
+                    <input 
+                        type="password" 
+                        name="password" 
+                        value={formData.password} 
+                        onChange={handleChange} 
+                        required 
+                        style={{width: '100%', padding: '8px', boxSizing: 'border-box'}}
+                    />
+                </div>
+                
+                <button 
+                    type="submit" 
+                    style={{width: '100%', padding: '10px', background: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}
+                >
+                    Login
+                </button>
+            </form>
         </div>
     );
 };
