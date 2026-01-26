@@ -2,13 +2,10 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const connectDB = require('./config/db'); // Assuming you have this
+const connectDB = require('./config/db'); 
 const authRoutes = require('./routes/authRoutes');
 const taxRoutes = require('./routes/taxRoutes');
 const trackVisitor = require('./middleware/visitorCounter');
-
-// Track every request to the API (or specific routes)
-app.use(trackVisitor);
 
 // Load env vars
 dotenv.config();
@@ -16,17 +13,22 @@ dotenv.config();
 // Connect to Database
 connectDB();
 
+// 1. INITIALIZE APP FIRST
 const app = express();
 
-// --- CRITICAL FIX: INCREASE PAYLOAD LIMIT ---
-// This allows large files (like PDFs) to be sent in the request body
+// 2. CONFIGURE CORE MIDDLEWARE
+// Increase payload limit for PDF uploads
 app.use(express.json({ limit: '50mb' })); 
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Enable CORS
 app.use(cors());
 
-// Routes
+// 3. APPLY CUSTOM MIDDLEWARE (Visitor Tracking)
+// Now 'app' exists, so this will work
+app.use(trackVisitor);
+
+// 4. DEFINE ROUTES
 app.use('/api/auth', authRoutes);
 app.use('/api/tax', taxRoutes);
 
