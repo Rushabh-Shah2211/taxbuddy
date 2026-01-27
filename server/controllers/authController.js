@@ -1,4 +1,3 @@
-// server/controllers/authController.js
 const User = require('../models/User');
 const TaxRecord = require('../models/TaxRecord');
 // const ChatRecord = require('../models/ChatRecord'); // Uncomment if model exists
@@ -14,19 +13,45 @@ const generateToken = (id) => {
     });
 };
 
-
-
 // @desc Register
 const registerUser = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
-        // ... (validation and existing user check) ...
+        console.log("🔹 REGISTER ATTEMPT:", req.body); // Debug log
 
+        const { name, email, password } = req.body;
+
+        // 1. Validation Check
+        if (!name || !email || !password) {
+            console.log("❌ FAIL: Missing fields");
+            return res.status(400).json({ message: 'Please add all fields' });
+        }
+
+        // 2. CRITICAL FIX: Explicit Type Check
+        // This prevents the "undefined matches all" bug if the body is empty
+        if (typeof email !== 'string') {
+             console.log("❌ FAIL: Email is not a string:", email);
+             return res.status(400).json({ message: 'Invalid email format' });
+        }
+
+        // 3. Check if user exists
+        const userExists = await User.findOne({ email: email });
+
+        if (userExists) {
+            console.log("❌ FAIL: User already exists:", email);
+            return res.status(400).json({ message: 'User already exists' });
+        }
+
+        // 4. Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // 5. Create user
         const user = await User.create({ name, email, password: hashedPassword });
 
         if (user) {
-            // --- START WELCOME EMAIL BLOCK ---
-            // We use 'setImmediate' or simply don't await it to prevent slowing down the response
+            console.log("✅ SUCCESS: User created:", user._id);
+
+            // --- WELCOME EMAIL BLOCK ---
             const welcomeMessage = `
                 <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
                     <h2 style="color: #2e7d32;">Welcome to Artha!</h2>
@@ -46,7 +71,7 @@ const registerUser = async (req, res) => {
                 email: user.email,
                 subject: 'Welcome to Artha! 🚀',
                 message: welcomeMessage
-            }).catch(err => console.error("Welcome Email Failed:", err));
+            }).catch(err => console.error("Welcome Email Failed:", err.message));
             // --- END WELCOME EMAIL BLOCK ---
 
             res.status(201).json({
@@ -59,6 +84,7 @@ const registerUser = async (req, res) => {
             res.status(400).json({ message: 'Invalid user data' });
         }
     } catch (error) {
+        console.error("Register Error:", error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -67,10 +93,21 @@ const registerUser = async (req, res) => {
 const loginUser = async (req, res) => {
     try {
         const { email, password } = req.body;
+        
+        // Validation
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Please provide email and password' });
+        }
+
         const user = await User.findOne({ email });
 
         if (user && (await bcrypt.compare(password, user.password))) {
-            res.json({ _id: user.id, name: user.name, email: user.email, token: generateToken(user.id) });
+            res.json({ 
+                _id: user.id, 
+                name: user.name, 
+                email: user.email, 
+                token: generateToken(user.id) 
+            });
         } else {
             res.status(400).json({ message: 'Invalid credentials' });
         }
@@ -117,7 +154,6 @@ const forgotPassword = async (req, res) => {
         await user.save();
 
         // Create Reset URL
-        // Ensure this matches your frontend URL structure
         const resetUrl = `https://taxbuddy-delta.vercel.app/reset-password/${resetToken}`;
 
         // Create Styled HTML Message
@@ -147,7 +183,7 @@ const forgotPassword = async (req, res) => {
         try {
             await sendEmail({
                 email: user.email,
-                subject: 'Artha Password Reset Request', // Clear subject line
+                subject: 'Artha Password Reset Request',
                 message: message
             });
 
@@ -191,14 +227,18 @@ const resetPassword = async (req, res) => {
 // @desc Delete User & All Data (GDPR Right to Erasure)
 const deleteUser = async (req, res) => {
     try {
-        const user = await User.findById(req.user._id); // req.user set by auth middleware
+        // req.user is set by your auth middleware (ensure you have it on the route)
+        // If not passing through middleware, you might need req.body._id or similar
+        const userId = req.user ? req.user._id : req.body.userId; 
+        
+        const user = await User.findById(userId);
 
         if (user) {
             // 1. Delete all Tax Records
             await TaxRecord.deleteMany({ user: user._id });
             
-            // 2. Delete all Chat Records
-            // if (ChatRecord) await ChatRecord.deleteMany({ user: user._id }); // Uncomment when model exists
+            // 2. Delete all Chat Records (Uncomment when you have the model)
+            // if (ChatRecord) await ChatRecord.deleteMany({ user: user._id });
 
             // 3. Delete User
             await User.findByIdAndDelete(user._id);
